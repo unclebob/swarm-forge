@@ -1,16 +1,8 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
 set -euo pipefail
 
-# ─────────────────────────────────────────────────────────────────────
-# SwarmForge — tmux-based agent orchestration platform
-# Launches a swarm of specialized AI agents under the SwarmForge Constitution
-# ─────────────────────────────────────────────────────────────────────
-
-SESSION="swarmforge"
-PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
-CONSTITUTION="$PROJECT_ROOT/Contitution.md"
-
-# ── Colors ───────────────────────────────────────────────────────────
+SESSION_PREFIX="swarmforge"
+AGENT_WINDOW="swarm"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -18,7 +10,23 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-# ── Preflight checks ────────────────────────────────────────────────
+WORKING_DIR="${1:-$PWD}"
+WORKING_DIR="$(cd "$WORKING_DIR" && pwd)"
+CONFIG_FILE="$WORKING_DIR/swarmforge.conf"
+ROLES_DIR="$WORKING_DIR/roles"
+STATE_DIR="$WORKING_DIR/.swarmforge"
+WINDOW_IDS_FILE="$STATE_DIR/window-ids"
+SESSIONS_FILE="$STATE_DIR/sessions.tsv"
+PROMPTS_DIR="$STATE_DIR/prompts"
+
+typeset -a ROLES=()
+typeset -a AGENTS=()
+typeset -a SESSIONS=()
+typeset -a DISPLAY_NAMES=()
+typeset -A ROLE_INDEX=()
+typeset -i CLEANUP_OWNER_INDEX=1
+typeset -i i=0
+
 check_dependency() {
   if ! command -v "$1" &>/dev/null; then
     echo -e "${RED}Error:${RESET} '$1' is required but not installed."
@@ -26,41 +34,320 @@ check_dependency() {
   fi
 }
 
-check_dependency tmux
-check_dependency claude
-check_dependency watch
+has_command() {
+  command -v "$1" &>/dev/null
+}
 
-if [[ ! -f "$CONSTITUTION" ]]; then
-  echo -e "${RED}Error:${RESET} Constitution not found at $CONSTITUTION"
-  exit 1
-fi
+display_name_for_role() {
+  local role="$1"
+  local normalized="${role//[-_]/ }"
+  local -a parts
+  local part
+  local label=""
 
-# ── Project setup ────────────────────────────────────────────────────
-mkdir -p "$PROJECT_ROOT/features" "$PROJECT_ROOT/logs" "$PROJECT_ROOT/agent_context"
+  parts=(${=normalized})
+  for part in "${parts[@]}"; do
+    case "${part:l}" in
+      e2e) part="E2E" ;;
+      tdd) part="TDD" ;;
+      qa) part="QA" ;;
+      ui) part="UI" ;;
+      api) part="API" ;;
+      *) part="${(C)part}" ;;
+    esac
+    if [[ -n "$label" ]]; then
+      label+=" "
+    fi
+    label+="$part"
+  done
 
-cat > "$PROJECT_ROOT/swarm-log.sh" << 'EOF'
-#!/bin/bash
+  echo "$label"
+}
+
+session_name_for_role() {
+  echo "${SESSION_PREFIX}-$1"
+}
+
+parse_config() {
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo -e "${RED}Error:${RESET} Config not found at $CONFIG_FILE"
+    exit 1
+  fi
+
+  local line keyword role agent line_no=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line_no=$((line_no + 1))
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -z "$line" || "${line[1]}" == "#" ]] && continue
+
+    local -a fields
+    fields=(${=line})
+    if (( ${#fields[@]} != 3 )); then
+      echo -e "${RED}Error:${RESET} Invalid config line $line_no: $line"
+      exit 1
+    fi
+
+    keyword="${fields[1]}"
+    role="${fields[2]}"
+    agent="${fields[3]:l}"
+
+    if [[ "$keyword" != "window" ]]; then
+      echo -e "${RED}Error:${RESET} Unknown config directive on line $line_no: $keyword"
+      exit 1
+    fi
+
+    if [[ -n "${ROLE_INDEX[$role]:-}" ]]; then
+      echo -e "${RED}Error:${RESET} Duplicate role '$role' in $CONFIG_FILE"
+      exit 1
+    fi
+
+    case "$agent" in
+      claude|codex|none) ;;
+      *)
+        echo -e "${RED}Error:${RESET} Unsupported agent '$agent' for role '$role'"
+        exit 1
+        ;;
+    esac
+
+    if [[ "$agent" != "none" && ! -f "$ROLES_DIR/$role.prompt" ]]; then
+      echo -e "${RED}Error:${RESET} Missing role prompt $ROLES_DIR/$role.prompt"
+      exit 1
+    fi
+
+    ROLE_INDEX[$role]=${#ROLES[@]}
+    ROLES+=("$role")
+    AGENTS+=("$agent")
+    SESSIONS+=("$(session_name_for_role "$role")")
+    DISPLAY_NAMES+=("$(display_name_for_role "$role")")
+  done < "$CONFIG_FILE"
+
+  if (( ${#ROLES[@]} == 0 )); then
+    echo -e "${RED}Error:${RESET} No windows defined in $CONFIG_FILE"
+    exit 1
+  fi
+}
+
+write_sessions_file() {
+  : > "$SESSIONS_FILE"
+  local i
+  for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
+    printf '%s\t%s\t%s\t%s\t%s\n' \
+      "$i" \
+      "${ROLES[$i]}" \
+      "${SESSIONS[$i]}" \
+      "${DISPLAY_NAMES[$i]}" \
+      "${AGENTS[$i]}" >> "$SESSIONS_FILE"
+  done
+}
+
+write_swarm_log_script() {
+  cat > "$WORKING_DIR/swarm-log.sh" <<'EOF'
+#!/usr/bin/env zsh
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 echo "[$TIMESTAMP] [$1] $2" >> logs/agent_messages.log
 echo "[$1] $2"
 EOF
-chmod +x "$PROJECT_ROOT/swarm-log.sh"
+  chmod +x "$WORKING_DIR/swarm-log.sh"
+}
 
-cat > "$PROJECT_ROOT/notify-agent.sh" << 'EOF'
-#!/bin/bash
-# Usage: ./notify-agent.sh <target-pane-index> "message"
-# Panes: 0=Architect, 1=E2E Interpreter, 2=Coder, 3=Metrics
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-echo "[$TIMESTAMP] [pane $1] $2" >> logs/agent_messages.log
-tmux send-keys -t swarmforge:swarm.$1 "$2" Enter
-EOF
-chmod +x "$PROJECT_ROOT/notify-agent.sh"
+write_notify_script() {
+  cat > "$WORKING_DIR/notify-agent.sh" <<'EOF'
+#!/usr/bin/env zsh
+set -euo pipefail
 
-# ── Kill existing session if running ─────────────────────────────────
-if tmux has-session -t "$SESSION" 2>/dev/null; then
-  echo -e "${YELLOW}Existing SwarmForge session found. Killing it...${RESET}"
-  tmux kill-session -t "$SESSION"
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SESSIONS_FILE="$ROOT_DIR/.swarmforge/sessions.tsv"
+
+if [[ $# -lt 2 ]]; then
+  echo "Usage: ./notify-agent.sh <target-role-or-index> \"message\"" >&2
+  exit 1
 fi
+
+if [[ ! -f "$SESSIONS_FILE" ]]; then
+  echo "Sessions file not found: $SESSIONS_FILE" >&2
+  exit 1
+fi
+
+resolve_session() {
+  local target="${1:l}"
+  local index role session display agent
+
+  while IFS=$'\t' read -r index role session display agent; do
+    if [[ "$target" == "${index:l}" || "$target" == "${role:l}" ]]; then
+      echo "$session"
+      return 0
+    fi
+  done < "$SESSIONS_FILE"
+
+  return 1
+}
+
+TARGET_SESSION=$(resolve_session "$1") || {
+  echo "Unknown target: $1" >&2
+  exit 1
+}
+
+MESSAGE="${*:2}"
+TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+echo "[$TIMESTAMP] [$TARGET_SESSION] $MESSAGE" >> "$ROOT_DIR/logs/agent_messages.log"
+tmux set-buffer -- "$MESSAGE"
+tmux paste-buffer -d -t "${TARGET_SESSION}:0.0"
+tmux send-keys -t "${TARGET_SESSION}:0.0" Enter
+EOF
+  chmod +x "$WORKING_DIR/notify-agent.sh"
+}
+
+write_cleanup_script() {
+  cat > "$WORKING_DIR/swarm-cleanup.sh" <<'EOF'
+#!/usr/bin/env zsh
+set -euo pipefail
+
+WINDOW_IDS_FILE="$1"
+shift
+
+for session in "$@"; do
+  tmux kill-session -t "$session" 2>/dev/null || true
+done
+
+sleep 1
+
+if [[ -f "$WINDOW_IDS_FILE" ]]; then
+  while IFS= read -r window_id; do
+    [[ -n "$window_id" ]] || continue
+    osascript \
+      -e 'tell application "Terminal"' \
+      -e 'try' \
+      -e 'close (first window whose id is '"$window_id"') saving no' \
+      -e 'end try' \
+      -e 'end tell' >/dev/null 2>&1 || true
+  done < "$WINDOW_IDS_FILE"
+fi
+EOF
+  chmod +x "$WORKING_DIR/swarm-cleanup.sh"
+}
+
+prepare_workspace() {
+  mkdir -p "$WORKING_DIR/logs" "$WORKING_DIR/agent_context" "$WORKING_DIR/features" "$STATE_DIR" "$PROMPTS_DIR"
+  write_sessions_file
+  write_swarm_log_script
+  write_notify_script
+  write_cleanup_script
+}
+
+check_backend_dependencies() {
+  local i
+  for (( i = 1; i <= ${#AGENTS[@]}; i++ )); do
+    case "${AGENTS[$i]}" in
+      claude) check_dependency claude ;;
+      codex) check_dependency codex ;;
+    esac
+  done
+}
+
+create_role_session() {
+  local session="$1"
+  local title="$2"
+
+  tmux new-session -d -s "$session" -n "$AGENT_WINDOW"
+  tmux rename-window -t "$session:$AGENT_WINDOW" "$title"
+  tmux set-window-option -t "$session:$title" allow-rename off
+}
+
+write_agent_instruction_file() {
+  local role="$1"
+  local prompt_file="$2"
+
+  cat > "$prompt_file" <<EOF
+Read roles/${role}.prompt and follow it.
+EOF
+}
+
+launch_role() {
+  local index="$1"
+  local role="${ROLES[$index]}"
+  local agent="${AGENTS[$index]}"
+  local session="${SESSIONS[$index]}"
+  local display="${DISPLAY_NAMES[$index]}"
+  local prompt_file="$PROMPTS_DIR/${role}.md"
+  local launch_cmd=""
+
+  if [[ "$agent" == "none" ]]; then
+    if [[ "$role" == "logger" ]]; then
+      tmux send-keys -t "${session}:${display}.0" \
+        "cd '$WORKING_DIR' && touch logs/agent_messages.log && tail -f logs/agent_messages.log" Enter
+    fi
+    echo -e "  ${CYAN}[${display}]${RESET} opened without agent backend"
+    return
+  fi
+
+  write_agent_instruction_file "$role" "$prompt_file"
+
+  case "$agent" in
+    claude)
+      launch_cmd="cd '$WORKING_DIR' && claude --append-system-prompt-file '$prompt_file' --permission-mode acceptEdits -n 'SwarmForge ${display}'"
+      ;;
+    codex)
+      launch_cmd="cd '$WORKING_DIR' && codex -C '$WORKING_DIR' \"\$(cat '$prompt_file')\""
+      ;;
+  esac
+
+  if [[ "$index" -eq "${CLEANUP_OWNER_INDEX}" ]]; then
+    launch_cmd="${launch_cmd}; exit_code=\$?; nohup '$WORKING_DIR/swarm-cleanup.sh' '$WINDOW_IDS_FILE'"
+    local session_name
+    for session_name in "${SESSIONS[@]}"; do
+      [[ -n "$session_name" ]] || continue
+      launch_cmd+=" '$session_name'"
+    done
+    launch_cmd+=" >/dev/null 2>&1 &!; exit \$exit_code"
+  fi
+
+  tmux send-keys -t "${session}:${display}.0" "$launch_cmd" Enter
+  echo -e "  ${CYAN}[${display}]${RESET} started in session ${session}"
+}
+
+open_terminal_window() {
+  local session="$1"
+  local title="$2"
+  osascript <<EOF
+tell application "Terminal"
+  activate
+  set newTab to do script ""
+  do script "cd '$WORKING_DIR' && exec tmux attach-session -t '${session}'" in newTab
+  set custom title of newTab to "${title}"
+  return id of front window
+end tell
+EOF
+}
+
+choose_cleanup_owner() {
+  if [[ -n "${ROLE_INDEX[architect]:-}" && "${AGENTS[$((ROLE_INDEX[architect] + 1))]}" != "none" ]]; then
+    CLEANUP_OWNER_INDEX=$((ROLE_INDEX[architect] + 1))
+    return
+  fi
+
+  for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
+    if [[ "${AGENTS[$i]}" != "none" ]]; then
+      CLEANUP_OWNER_INDEX=$i
+      return
+    fi
+  done
+}
+
+check_dependency tmux
+parse_config
+check_backend_dependencies
+prepare_workspace
+choose_cleanup_owner
+
+local_session=""
+for local_session in "${SESSIONS[@]}"; do
+  [[ -n "$local_session" ]] || continue
+  if tmux has-session -t "$local_session" 2>/dev/null; then
+    echo -e "${YELLOW}Existing SwarmForge session found: ${local_session}. Killing it...${RESET}"
+    tmux kill-session -t "$local_session"
+  fi
+done
 
 echo -e "${CYAN}${BOLD}"
 echo "  ╔═══════════════════════════════════════════════╗"
@@ -69,133 +356,35 @@ echo "  ║   Disciplined agents build better software    ║"
 echo "  ╚═══════════════════════════════════════════════╝"
 echo -e "${RESET}"
 
-# ── Constitution preamble for agent system prompts ───────────────────
-CONSTITUTION_CONTENT=$(cat "$CONSTITUTION")
-
-build_agent_prompt() {
-  local role="$1"
-  local instructions="$2"
-  cat <<EOF
-You are the ${role} agent in the SwarmForge swarm.
-
-## Your Role
-${instructions}
-
-## SwarmForge Constitution (MANDATORY — you must obey every rule)
-${CONSTITUTION_CONTENT}
-
-## Working Directory
-${PROJECT_ROOT}
-
-## Coordination
-- You work inside a tmux session named "${SESSION}".
-- To send a message to another agent, run: ./notify-agent.sh <pane> "message"
-  - Pane 0 = Architect
-  - Pane 1 = E2E Interpreter
-  - Pane 2 = Coder
-  - Pane 3 = Metrics (dashboard, not an agent)
-- This types your message directly into that agent's prompt. They will see it and respond.
-- Use ./swarm-log.sh "YourRole" "message" to log activity to logs/agent_messages.log.
-- Shared files in agent_context/ can be used for passing larger artifacts between agents.
-- Follow the Constitution strictly. Reject any work that violates it.
-EOF
-}
-
-# ── Agent definitions ────────────────────────────────────────────────
-
-ARCHITECT_PROMPT=$(build_agent_prompt "Architect" "$(cat <<'ROLE'
-You are the lead Architect. You:
-- Receive tasks from the user and decompose them into subtasks for the swarm.
-- Design the overall architecture and define interfaces.
-- Write Gherkin .feature files describing expected behavior BEFORE implementation.
-- Coordinate the TDD cycle: ensure tests are written first, code passes, then refactor.
-- Review the work of other agents and enforce the Constitution.
-- You are the main point of contact for the human user.
-ROLE
-)")
-
-CODER_PROMPT=$(build_agent_prompt "Coder" "$(cat <<'ROLE'
-You are the Coder. You:
-- Write production code ONLY to make failing tests pass (Green phase of TDD).
-- Never write more code than necessary to pass the current failing test.
-- Follow the architecture and interfaces defined by the Architect.
-- Keep methods short, simple, and within complexity limits.
-- After tests pass, participate in the Refactor phase.
-- Never commit code without accompanying tests that were written first.
-ROLE
-)")
-
-E2E_INTERPRETER_PROMPT=$(build_agent_prompt "E2E Interpreter" "$(cat <<'ROLE'
-You are the E2E Interpreter. You:
-- Parse Gherkin .feature files written by the Architect.
-- Convert Given-When-Then scenarios into executable end-to-end test code.
-- Run E2E tests and report results.
-- Ensure all Gherkin scenarios pass before any feature is marked complete.
-- Update Gherkin scenarios when behavior changes.
-- Gherkin files are the single source of truth for expected system behavior.
-ROLE
-)")
-
-# ── Create tmux session with 4 panes ────────────────────────────────
-echo -e "${GREEN}Launching SwarmForge tmux session...${RESET}"
-
-# Create session with 4 equal panes in a 2x2 grid
-# Layout: Architect (TL) | Coder (TR)
-#         E2E Interp (BL) | Metrics (BR)
-tmux new-session -d -s "$SESSION" -n "swarm"
-
-# Split into left and right columns
-tmux split-window -t "$SESSION:swarm.0" -h -p 50
-
-# Split left column into top/bottom
-tmux split-window -t "$SESSION:swarm.0" -v -p 50
-
-# Split right column into top/bottom
-tmux split-window -t "$SESSION:swarm.2" -v -p 50
-
-# After splits: 0=TL, 1=BL, 2=TR, 3=BR
-tmux select-pane -t "$SESSION:swarm.0" -T "Architect"
-tmux select-pane -t "$SESSION:swarm.1" -T "E2E Interpreter"
-tmux select-pane -t "$SESSION:swarm.2" -T "Coder"
-tmux select-pane -t "$SESSION:swarm.3" -T "Metrics"
-
-# Show pane titles in borders
-tmux set-option -t "$SESSION" pane-border-status top
-tmux set-option -t "$SESSION" pane-border-format " #{pane_title} "
-tmux set-window-option -t "$SESSION:swarm" allow-rename off
+echo -e "${GREEN}Launching SwarmForge tmux sessions...${RESET}"
+for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
+  create_role_session "${SESSIONS[$i]}" "${DISPLAY_NAMES[$i]}"
+done
 
 echo -e "${GREEN}Starting agents...${RESET}"
+for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
+  launch_role "$i"
+done
 
-# ── Launch agents via claude CLI ─────────────────────────────────────
-launch_agent() {
-  local pane="$1"
-  local name="$2"
-  local prompt="$3"
-
-  local prompt_file="/tmp/swarmforge-${name}.md"
-  printf '%s' "$prompt" > "$prompt_file"
-
-  tmux send-keys -t "$SESSION:swarm.$pane" \
-    "cd '$PROJECT_ROOT' && claude --append-system-prompt-file '${prompt_file}' --permission-mode acceptEdits -n 'SwarmForge ${name}'" Enter
-
-  echo -e "  ${CYAN}[${name}]${RESET} started in pane $pane"
-}
-
-launch_agent 0 "Architect"       "$ARCHITECT_PROMPT"
-launch_agent 2 "Coder"           "$CODER_PROMPT"
-launch_agent 1 "E2E-Interpreter" "$E2E_INTERPRETER_PROMPT"
-
-# ── Metrics pane (pane 3 = bottom-right) ─────────────────────────────
-tmux send-keys -t "$SESSION:swarm.3" "cd '$PROJECT_ROOT' && touch logs/agent_messages.log && tail -f logs/agent_messages.log" Enter
-
-# ── Attach ───────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}SwarmForge is ready.${RESET}"
-echo -e "Agents: Architect (TL), Coder (TR), E2E Interpreter (BL)"
-echo -e "Metrics dashboard (BR)"
+echo -e "Working directory: ${WORKING_DIR}"
+echo -e "Sessions:"
+for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
+  echo -e "  ${DISPLAY_NAMES[$i]}: ${SESSIONS[$i]}"
+done
 echo ""
-echo -e "Attaching to tmux session '${SESSION}'..."
-echo -e "${GREEN}Tip: Use the Architect pane (top-left) to give tasks to the swarm.${RESET}"
+echo -e "${GREEN}Tip: Use ./notify-agent.sh <role-or-index> \"message\" from ${WORKING_DIR}.${RESET}"
+echo -e "${GREEN}Tip: Reattach manually with 'tmux attach-session -t <session-name>' if needed.${RESET}"
 echo ""
 
-tmux attach-session -t "$SESSION"
+if has_command osascript; then
+  echo -e "Opening separate Terminal windows for each session..."
+  : > "$WINDOW_IDS_FILE"
+  for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
+    open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}" >> "$WINDOW_IDS_FILE"
+  done
+else
+  echo -e "${YELLOW}osascript not found; attaching current shell to '${SESSIONS[$CLEANUP_OWNER_INDEX]}' instead.${RESET}"
+  tmux attach-session -t "${SESSIONS[$CLEANUP_OWNER_INDEX]}"
+fi

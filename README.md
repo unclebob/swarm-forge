@@ -16,38 +16,39 @@ SwarmForge turns raw AI coding power into **disciplined, trustworthy engineering
 
 SwarmForge is a lightweight, tmux-based orchestration layer that:
 
-- Spawns and coordinates a **swarm of specialized AI agents** (Architect, Coder, TDD Guardian, E2E Interpreter, Mutation Hunter, Complexity Enforcer, Linter Guardian, etc.)
-- Manages real-time collaboration between agents through named tmux panes and shared file system
-- Enforces the **SwarmForge Constitution** on every change:
-  1. **TDD** – Tests first, always (Red → Green → Refactor)
-  2. **E2E Gherkin Tests** – Features described in business language and automatically interpreted into executable end-to-end tests
-  3. **Mutation Testing** – Agents deliberately break the code to ensure tests are meaningful
-  4. **Cyclomatic Complexity + CRAP Score** – Keeps every method simple and low-risk
-  5. **Linter Enforcement** – Zero warnings, consistent style and quality
-- Provides live visibility into the swarm’s progress through tmux panes and a growing metrics dashboard
-- Builds production-grade, maintainable code while staying true to clean code principles
+- Launches a **config-driven swarm** from a project-local `swarmforge.conf`
+- Creates one tmux session and one Terminal window per configured role
+- Reads behavior from project-local `roles/<role>.prompt` files
+- Supports per-role backends such as `claude`, `codex`, or `none`
+- Generates helper scripts in the working directory for logging, notification, and cleanup
+- Keeps all swarm state local to the working directory in `.swarmforge/`
 
 ## Core Features
 
-- **Constitution-Driven Development** — The rules are not suggestions. Agents that violate them are blocked.
-- **Self-Hosted & Lightweight** — Runs locally in tmux. No heavy dependencies or cloud costs for the core.
-- **Dogfooding** — SwarmForge uses its own swarm to extend and improve itself.
-- **Observable Swarm** — Watch multiple agents reason, write tests, run mutations, and refactor in real time.
-- **Scalable Foundation** — Designed as the base layer for future distributed/cloud swarms and an Electron GUI.
+- **Config-Driven Topology** — The swarm shape comes from `swarmforge.conf`, not hardcoded shell variables.
+- **Project-Local Roles** — Each role is defined by `roles/<role>.prompt` in the working tree being orchestrated.
+- **Backend Selection Per Role** — A role can launch `claude`, `codex`, or no agent at all.
+- **Observable Swarm** — Open one Terminal window per role and watch the sessions in real time.
+- **Self-Hosted & Lightweight** — Runs locally in tmux and Terminal with minimal machinery.
 
 ## How It Works (High Level)
 
-1. Launch `./swarmforge.sh` — starts the tmux session with the swarm.
-2. Give the swarm a task (via main Architect pane or feature Gherkin file).
-3. Agents collaborate under the Constitution:
-   - Requirements → Gherkin scenarios
-   - Gherkin → E2E tests
-   - TDD cycle for implementation
-   - Mutation testing + complexity checks
-   - Linter validation
-4. Only clean, tested, mutation-killed, low-complexity code is accepted.
+1. Create `swarmforge.conf` in the target working directory.
+2. Create a `roles/` directory beside it with one `<role>.prompt` file per configured role.
+3. Run `./swarmforge.sh <working-directory>` or run it from inside that directory.
+4. SwarmForge creates tmux sessions, opens Terminal windows, and launches each configured backend.
+5. Roles communicate through `./notify-agent.sh <role-or-index> "message"` and log via `./swarm-log.sh`.
 
-The swarm refuses to ship anything that doesn’t meet the standards.
+Example config:
+
+```conf
+window architect claude
+window coder codex
+window e2e codex
+window logger none
+```
+
+`logger` is a utility role. When configured with `none`, it tails `logs/agent_messages.log`.
 
 ## Who Is SwarmForge For?
 
@@ -60,6 +61,24 @@ The swarm refuses to ship anything that doesn’t meet the standards.
 
 ```bash
 git clone https://github.com/LupusDei/swarm-forge.git
-cd swarmforge
+cd swarm-forge
 chmod +x swarmforge.sh
-./swarmforge.sh
+mkdir my-project
+cd my-project
+cat > swarmforge.conf <<'EOF'
+window architect claude
+window coder codex
+window e2e codex
+window logger none
+EOF
+mkdir roles
+cat > roles/architect.prompt <<'EOF'
+You are the architect. Read Contitution.md and follow it.
+EOF
+cat > roles/coder.prompt <<'EOF'
+You are the coder. Read Contitution.md and follow it.
+EOF
+cat > roles/e2e.prompt <<'EOF'
+You are the e2e role. Read Contitution.md and follow it.
+EOF
+/path/to/swarm-forge/swarmforge.sh .
