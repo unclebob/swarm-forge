@@ -12,9 +12,11 @@ RESET='\033[0m'
 
 WORKING_DIR="${1:-$PWD}"
 WORKING_DIR="$(cd "$WORKING_DIR" && pwd)"
-CONFIG_FILE="$WORKING_DIR/swarmforge.conf"
-ROLES_DIR="$WORKING_DIR/roles"
-CONSTITUTION_FILE="$ROLES_DIR/constitution.prompt"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SWARM_FORGE_DIR="$WORKING_DIR/swarm-forge"
+CONFIG_FILE="$SWARM_FORGE_DIR/swarm-forge.conf"
+ROLES_DIR="$SWARM_FORGE_DIR"
+CONSTITUTION_FILE="$SWARM_FORGE_DIR/constitution.prompt"
 STATE_DIR="$WORKING_DIR/.swarmforge"
 WINDOW_IDS_FILE="$STATE_DIR/window-ids"
 SESSIONS_FILE="$STATE_DIR/sessions.tsv"
@@ -147,98 +149,20 @@ write_sessions_file() {
   done
 }
 
-write_swarm_log_script() {
-  cat > "$WORKING_DIR/swarm-log.sh" <<'EOF'
-#!/usr/bin/env zsh
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-echo "[$TIMESTAMP] [$1] $2" >> logs/agent_messages.log
-echo "[$1] $2"
-EOF
-  chmod +x "$WORKING_DIR/swarm-log.sh"
-}
-
-write_notify_script() {
-  cat > "$WORKING_DIR/notify-agent.sh" <<'EOF'
-#!/usr/bin/env zsh
-set -euo pipefail
-
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SESSIONS_FILE="$ROOT_DIR/.swarmforge/sessions.tsv"
-
-if [[ $# -lt 2 ]]; then
-  echo "Usage: ./notify-agent.sh <target-role-or-index> \"message\"" >&2
-  exit 1
-fi
-
-if [[ ! -f "$SESSIONS_FILE" ]]; then
-  echo "Sessions file not found: $SESSIONS_FILE" >&2
-  exit 1
-fi
-
-resolve_session() {
-  local target="${1:l}"
-  local index role session display agent
-
-  while IFS=$'\t' read -r index role session display agent; do
-    if [[ "$target" == "${index:l}" || "$target" == "${role:l}" ]]; then
-      echo "$session"
-      return 0
+check_helper_scripts() {
+  local helper
+  for helper in notify-agent.sh swarm-log.sh swarm-cleanup.sh; do
+    if [[ ! -x "$SCRIPT_DIR/$helper" ]]; then
+      echo -e "${RED}Error:${RESET} Required helper script not found or not executable: $SCRIPT_DIR/$helper"
+      exit 1
     fi
-  done < "$SESSIONS_FILE"
-
-  return 1
-}
-
-TARGET_SESSION=$(resolve_session "$1") || {
-  echo "Unknown target: $1" >&2
-  exit 1
-}
-
-MESSAGE="${*:2}"
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-echo "[$TIMESTAMP] [$TARGET_SESSION] $MESSAGE" >> "$ROOT_DIR/logs/agent_messages.log"
-tmux set-buffer -- "$MESSAGE"
-tmux paste-buffer -d -t "${TARGET_SESSION}:0.0"
-tmux send-keys -t "${TARGET_SESSION}:0.0" Enter
-EOF
-  chmod +x "$WORKING_DIR/notify-agent.sh"
-}
-
-write_cleanup_script() {
-  cat > "$WORKING_DIR/swarm-cleanup.sh" <<'EOF'
-#!/usr/bin/env zsh
-set -euo pipefail
-
-WINDOW_IDS_FILE="$1"
-shift
-
-for session in "$@"; do
-  tmux kill-session -t "$session" 2>/dev/null || true
-done
-
-sleep 1
-
-if [[ -f "$WINDOW_IDS_FILE" ]]; then
-  while IFS= read -r window_id; do
-    [[ -n "$window_id" ]] || continue
-    osascript \
-      -e 'tell application "Terminal"' \
-      -e 'try' \
-      -e 'close (first window whose id is '"$window_id"') saving no' \
-      -e 'end try' \
-      -e 'end tell' >/dev/null 2>&1 || true
-  done < "$WINDOW_IDS_FILE"
-fi
-EOF
-  chmod +x "$WORKING_DIR/swarm-cleanup.sh"
+  done
 }
 
 prepare_workspace() {
   mkdir -p "$WORKING_DIR/logs" "$WORKING_DIR/agent_context" "$WORKING_DIR/features" "$STATE_DIR" "$PROMPTS_DIR"
+  check_helper_scripts
   write_sessions_file
-  write_swarm_log_script
-  write_notify_script
-  write_cleanup_script
 }
 
 check_backend_dependencies() {
@@ -265,8 +189,8 @@ write_agent_instruction_file() {
   local prompt_file="$2"
 
   cat > "$prompt_file" <<EOF
-Read roles/constitution.prompt and obey it.
-Read roles/${role}.prompt and follow it.
+Read swarm-forge/constitution.prompt and obey it.
+Read swarm-forge/${role}.prompt and follow it.
 EOF
 }
 
@@ -300,7 +224,7 @@ launch_role() {
   esac
 
   if [[ "$index" -eq "${CLEANUP_OWNER_INDEX}" ]]; then
-    launch_cmd="${launch_cmd}; exit_code=\$?; nohup '$WORKING_DIR/swarm-cleanup.sh' '$WINDOW_IDS_FILE'"
+    launch_cmd="${launch_cmd}; exit_code=\$?; nohup '$SCRIPT_DIR/swarm-cleanup.sh' '$WINDOW_IDS_FILE'"
     local session_name
     for session_name in "${SESSIONS[@]}"; do
       [[ -n "$session_name" ]] || continue
@@ -378,10 +302,10 @@ echo -e "${GREEN}${BOLD}SwarmForge is ready.${RESET}"
 echo -e "Working directory: ${WORKING_DIR}"
 echo -e "Sessions:"
 for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
-  echo -e "  ${DISPLAY_NAMES[$i]}: ${SESSIONS[$i]}"
+echo -e "  ${DISPLAY_NAMES[$i]}: ${SESSIONS[$i]}"
 done
 echo ""
-echo -e "${GREEN}Tip: Use ./notify-agent.sh <role-or-index> \"message\" from ${WORKING_DIR}.${RESET}"
+echo -e "${GREEN}Tip: Use $SCRIPT_DIR/notify-agent.sh <role-or-index> \"message\" while the swarm is running.${RESET}"
 echo -e "${GREEN}Tip: Reattach manually with 'tmux attach-session -t <session-name>' if needed.${RESET}"
 echo ""
 

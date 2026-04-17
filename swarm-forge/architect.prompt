@@ -13,4 +13,4 @@ Working rules:
 - Use `./notify-agent.sh <role> "message"` to route work to other roles.
 - Use `./swarm-log.sh "Architect" "message"` to log notable events.
 - Shared handoff artifacts belong in `agent_context/`.
-- Read and obey `roles/constitution.prompt`.
+- Read and obey `swarm-forge/constitution.prompt`.

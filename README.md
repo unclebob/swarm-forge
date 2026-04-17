@@ -16,28 +16,28 @@ SwarmForge turns raw AI coding power into **disciplined, trustworthy engineering
 
 SwarmForge is a lightweight, tmux-based orchestration layer that:
 
-- Launches a **config-driven swarm** from a project-local `swarmforge.conf`
+- Launches a **config-driven swarm** from a project-local `swarm-forge/swarm-forge.conf`
 - Creates one tmux session and one Terminal window per configured role
-- Reads behavior from project-local `roles/<role>.prompt` files plus `roles/constitution.prompt`
+- Reads behavior from project-local `swarm-forge/<role>.prompt` files plus `swarm-forge/constitution.prompt`
 - Supports per-role backends such as `claude`, `codex`, or `none`
-- Generates helper scripts in the working directory for logging, notification, and cleanup
+- Uses the checked-in helper scripts that ship with SwarmForge for logging, notification, and cleanup
 - Keeps all swarm state local to the working directory in `.swarmforge/`
 
 ## Core Features
 
-- **Config-Driven Topology** — The swarm shape comes from `swarmforge.conf`, not hardcoded shell variables.
-- **Project-Local Roles** — Each role is defined by `roles/<role>.prompt` in the working tree being orchestrated.
+- **Config-Driven Topology** — The swarm shape comes from `swarm-forge/swarm-forge.conf`, not hardcoded shell variables.
+- **Project-Local Roles** — Each role is defined by `swarm-forge/<role>.prompt` in the working tree being orchestrated.
 - **Backend Selection Per Role** — A role can launch `claude`, `codex`, or no agent at all.
 - **Observable Swarm** — Open one Terminal window per role and watch the sessions in real time.
 - **Self-Hosted & Lightweight** — Runs locally in tmux and Terminal with minimal machinery.
 
 ## How It Works (High Level)
 
-1. Create `swarmforge.conf` in the target working directory.
-2. Create a `roles/` directory beside it with `constitution.prompt` plus one `<role>.prompt` file per configured role.
+1. Create a `swarm-forge/` directory in the target working directory.
+2. Put `swarm-forge.conf`, `constitution.prompt`, and one `<role>.prompt` file per configured role inside it.
 3. Run `./swarmforge.sh <working-directory>` or run it from inside that directory.
 4. SwarmForge creates tmux sessions, opens Terminal windows, and launches each configured backend.
-5. Roles communicate through `./notify-agent.sh <role-or-index> "message"` and log via `./swarm-log.sh`.
+5. Roles communicate through the SwarmForge helper scripts such as `notify-agent.sh` and `swarm-log.sh`.
 
 Example config:
 
@@ -50,6 +50,12 @@ window logger none
 
 `logger` is a utility role. When configured with `none`, it tails `logs/agent_messages.log`.
 
+The launcher expects these helper scripts to exist beside `swarmforge.sh`:
+
+- `notify-agent.sh`
+- `swarm-log.sh`
+- `swarm-cleanup.sh`
+
 ## Who Is SwarmForge For?
 
 - Developers who want to harness AI agents without sacrificing code quality
@@ -60,28 +66,28 @@ window logger none
 ## Getting Started
 
 ```bash
-git clone https://github.com/LupusDei/swarm-forge.git
+git clone https://github.com/unclebob/swarm-forge.git
 cd swarm-forge
 chmod +x swarmforge.sh
 mkdir my-project
 cd my-project
-cat > swarmforge.conf <<'EOF'
+mkdir swarm-forge
+cat > swarm-forge/swarm-forge.conf <<'EOF'
 window architect claude
 window coder codex
 window e2e codex
 window logger none
 EOF
-mkdir roles
-cat > roles/constitution.prompt <<'EOF'
+cat > swarm-forge/constitution.prompt <<'EOF'
 Read this constitution and obey it on every task.
 EOF
-cat > roles/architect.prompt <<'EOF'
-You are the architect. Read roles/constitution.prompt and follow it.
+cat > swarm-forge/architect.prompt <<'EOF'
+You are the architect. Read swarm-forge/constitution.prompt and follow it.
 EOF
-cat > roles/coder.prompt <<'EOF'
-You are the coder. Read roles/constitution.prompt and follow it.
+cat > swarm-forge/coder.prompt <<'EOF'
+You are the coder. Read swarm-forge/constitution.prompt and follow it.
 EOF
-cat > roles/e2e.prompt <<'EOF'
-You are the e2e role. Read roles/constitution.prompt and follow it.
+cat > swarm-forge/e2e.prompt <<'EOF'
+You are the e2e role. Read swarm-forge/constitution.prompt and follow it.
 EOF
 /path/to/swarm-forge/swarmforge.sh .

@@ -12,4 +12,4 @@ Working rules:
 - Use `./notify-agent.sh <role> "message"` to communicate with other roles.
 - Use `./swarm-log.sh "Coder" "message"` to log notable events.
 - Shared handoff artifacts belong in `agent_context/`.
-- Read and obey `roles/constitution.prompt`.
+- Read and obey `swarm-forge/constitution.prompt`.
