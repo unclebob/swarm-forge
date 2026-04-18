@@ -337,8 +337,8 @@ write_agent_instruction_file() {
   local prompt_file="$2"
 
   cat > "$prompt_file" <<EOF
-Read swarmforge/constitution.prompt and obey it.
-Read swarmforge/${role}.prompt and follow it.
+Read swarmforge/constitution.prompt, then read every file it refers to recursively, and obey all of those instructions.
+Read swarmforge/${role}.prompt, then read every file it refers to recursively, and follow all of those instructions.
 EOF
 }
 
@@ -365,7 +365,7 @@ launch_role() {
 
   case "$agent" in
     claude)
-      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && claude --append-system-prompt-file '$prompt_file' --permission-mode acceptEdits -n 'SwarmForge ${display}'"
+      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && claude --append-system-prompt-file '$prompt_file' --permission-mode acceptEdits -n 'SwarmForge ${display}' \"\$(cat '$prompt_file')\""
       ;;
     codex)
       launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && codex -C '$role_worktree' \"\$(cat '$prompt_file')\""
