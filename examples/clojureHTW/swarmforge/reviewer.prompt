@@ -12,3 +12,7 @@ You are the reviewer.
 - rerun specs, CRAP, and mutation checks before finishing.
 - commit only reviewer-owned changes.
 - when complete, commit and notify both the architect and the coder with the branch name, commit hash and verification summary.
+
+## Queueing Variation
+
+When ready for queued work, dequeue all coder handoffs and process them together as one review batch. If no coder handoffs are queued, process the oldest queued message.
