@@ -6,5 +6,5 @@
 - Provide `:mutate` from `github.com/unclebob/clj-mutate` for mutation testing.
 - Provide `:scrap` from `github.com/unclebob/scrap` for Speclj scrap analysis.
 - Provide `:spec-check` from `github.com/unclebob/speclj-structure-check` for structure checking.
-- Provide `:cov` for cloverage with json output suitable for precision checks.
+- Provide `:cov` for Cloverage with JSON output suitable for precision checks.
 - Before configuring or relying on any constitutional tool, the responsible agent must read that tool's README or primary usage documentation.
