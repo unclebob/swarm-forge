@@ -1,6 +1,11 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
+if [[ $# -lt 1 ]]; then
+  echo "Usage: swarm-cleanup.sh <window-ids-file> [session ...]" >&2
+  exit 1
+fi
+
 WINDOW_IDS_FILE="$1"
 shift
 

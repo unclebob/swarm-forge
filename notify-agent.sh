@@ -35,6 +35,7 @@ TARGET_SESSION=$(resolve_session "$1") || {
 
 MESSAGE="${*:2}"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+mkdir -p "$ROOT_DIR/logs"
 echo "[$TIMESTAMP] [$TARGET_SESSION] $MESSAGE" >> "$ROOT_DIR/logs/agent_messages.log"
 tmux send-keys -t "${TARGET_SESSION}:0.0" -l -- "$MESSAGE"
 sleep 0.15
