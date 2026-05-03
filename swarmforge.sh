@@ -360,9 +360,63 @@ launch_role() {
 
   write_agent_instruction_file "$role" "$prompt_file"
 
+  # Pin the Claude Code effort level per role so each agent runs at an
+  # appropriate reasoning budget regardless of shell or tmux env
+  # inheritance. Per-role env vars win; SWARMFORGE_EFFORT is a shared
+  # fallback. Defaults pair with the per-role model defaults below:
+  # Opus roles (architect, reviewer) get xhigh because Opus honors it
+  # and their mistakes compound. Coder defaults to high because Sonnet
+  # silently downgrades xhigh to high, so high is the real ceiling on
+  # the coder pane anyway.
+  local agent_effort
+  case "$role" in
+    architect|architect-*)
+      agent_effort="${SWARMFORGE_ARCHITECT_EFFORT:-${SWARMFORGE_EFFORT:-xhigh}}"
+      ;;
+    coder|coder-*)
+      agent_effort="${SWARMFORGE_CODER_EFFORT:-${SWARMFORGE_EFFORT:-high}}"
+      ;;
+    reviewer|reviewer-*)
+      agent_effort="${SWARMFORGE_REVIEWER_EFFORT:-${SWARMFORGE_EFFORT:-xhigh}}"
+      ;;
+    *)
+      agent_effort="${SWARMFORGE_EFFORT:-high}"
+      ;;
+  esac
+
+  # Pick the Claude model per role. Opus's deeper reasoning is worth the
+  # premium for the architect (planning) and reviewer (verification);
+  # Sonnet handles spec-driven coder work at a fraction of the cost,
+  # which matters because the coder spends the most turns. Per-role env
+  # vars win; SWARMFORGE_MODEL is a shared fallback. Empty string means
+  # "let claude inherit the global default" — used for unknown roles.
+  local agent_model
+  case "$role" in
+    architect|architect-*)
+      agent_model="${SWARMFORGE_ARCHITECT_MODEL:-${SWARMFORGE_MODEL:-claude-opus-4-7}}"
+      ;;
+    coder|coder-*)
+      agent_model="${SWARMFORGE_CODER_MODEL:-${SWARMFORGE_MODEL:-claude-sonnet-4-6}}"
+      ;;
+    reviewer|reviewer-*)
+      agent_model="${SWARMFORGE_REVIEWER_MODEL:-${SWARMFORGE_MODEL:-claude-opus-4-7}}"
+      ;;
+    *)
+      agent_model="${SWARMFORGE_MODEL:-}"
+      ;;
+  esac
+  local model_flag=""
+  [[ -n "$agent_model" ]] && model_flag="--model '$agent_model' "
+
+  # Permission mode for the claude CLI. Defaults to auto so the swarm can
+  # make progress without permission prompts. Override with
+  # SWARMFORGE_PERMISSION_MODE (values: default, plan, acceptEdits, auto,
+  # bypassPermissions, dontAsk).
+  local agent_permission="${SWARMFORGE_PERMISSION_MODE:-auto}"
+
   case "$agent" in
     claude)
-      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && claude --append-system-prompt-file '$prompt_file' --permission-mode acceptEdits -n 'SwarmForge ${display}' \"\$(cat '$prompt_file')\""
+      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && export CLAUDE_CODE_EFFORT_LEVEL='$agent_effort' && cd '$role_worktree' && claude ${model_flag}--append-system-prompt-file '$prompt_file' --permission-mode '$agent_permission' -n 'SwarmForge ${display}' \"\$(cat '$prompt_file')\""
       ;;
     codex)
       launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && codex -C '$role_worktree' \"\$(cat '$prompt_file')\""
