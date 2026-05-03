@@ -1,0 +1,5 @@
+# Project Rules
+
+- This project is a faithful reproduction of the original Hunt The Wumpus.
+- Use console IO.
+- Keep every command single-line and avoid secondary prompts.

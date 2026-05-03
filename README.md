@@ -108,11 +108,24 @@ In the example above, the agents run in these worktrees:
 
 If a window uses `master` as its worktree name, SwarmForge does not create `.worktrees/master`; that role runs in the main working directory on the `master` branch.
 
+## Skills
+
+Agents launched with the `claude` backend inherit every Claude Code skill installed for the current user (global `~/.claude/skills/` and any plugins). This means role prompts can instruct an agent to invoke specific skills at specific moments — for example, telling a coder to run the `simplify` skill before handoff, or telling a reviewer to run `pr-review-toolkit:code-reviewer`, `pr-review-toolkit:silent-failure-hunter`, `pr-review-toolkit:pr-test-analyzer`, and similar.
+
+A few things to keep in mind:
+
+- Skills are a Claude Code feature. Agents launched with the `codex` backend do not have access to skills, and any skill instructions in their prompt will be ignored.
+- Skill availability depends on what the user running SwarmForge has installed. If a prompt names a skill that is not installed, tell the agent to note it in its handoff rather than skip silently so drift is visible.
+- Role prompts are the right place to wire skills in. Put skill invocation rules near the handoff step of the role that owns that quality gate (coder for pre-handoff cleanup, reviewer for verification).
+
+See `examples/clojureHTW-pairs/swarmforge/coder.base.prompt` and `reviewer.base.prompt` for a worked example of skill usage in role prompts.
+
 ## Examples
 
 The repository includes example swarm definitions under `examples/`.
 
 - `examples/clojureHTW/swarmforge/` shows a layered constitution and agent prompts for a Clojure Hunt The Wumpus project, including a queueing rule for messages that arrive while an agent is busy.
+- `examples/clojureHTW-pairs/swarmforge/` extends the same project with two parallel coder/reviewer pairs (`coder-a`+`reviewer-a`, `coder-b`+`reviewer-b`) coordinated by a single architect. Use this layout when you want slices of work to run in parallel and the architect to serialize merges back to `master`.
 
 Use these example directories as starting points for project-local `swarmforge/` folders.
 
