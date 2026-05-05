@@ -33,12 +33,52 @@ typeset -a WORKTREE_PATHS=()
 typeset -A ROLE_INDEX=()
 typeset -A WORKTREE_INDEX=()
 typeset -i CLEANUP_OWNER_INDEX=1
+typeset -i TMUX_WINDOW_BASE_INDEX=0
+typeset -i TMUX_PANE_BASE_INDEX=0
 typeset -i i=0
 
 check_dependency() {
   if ! command -v "$1" &>/dev/null; then
     echo -e "${RED}Error:${RESET} '$1' is required but not installed."
     exit 1
+  fi
+}
+
+get_tmux_option() {
+  local option="$1"
+  local scope="$2"
+  local default_value="$3"
+  local value=""
+
+  case "$scope" in
+    session)
+      value="$(tmux show-options -gqv "$option" 2>/dev/null || true)"
+      ;;
+    window)
+      value="$(tmux show-window-options -gv "$option" 2>/dev/null || true)"
+      ;;
+  esac
+
+  if [[ "$value" =~ "^[0-9]+$" ]]; then
+    echo "$value"
+  else
+    echo "$default_value"
+  fi
+}
+
+detect_tmux_base_indexes() {
+  local probe_session=""
+
+  if ! tmux info &>/dev/null; then
+    probe_session="swarmforge-probe-$$"
+    tmux new-session -d -s "$probe_session" "sleep 60" >/dev/null
+  fi
+
+  TMUX_WINDOW_BASE_INDEX="$(get_tmux_option base-index session 0)"
+  TMUX_PANE_BASE_INDEX="$(get_tmux_option pane-base-index window 0)"
+
+  if [[ -n "$probe_session" ]]; then
+    tmux kill-session -t "$probe_session" >/dev/null 2>&1 || true
   fi
 }
 
@@ -229,13 +269,18 @@ check_helper_scripts() {
 }
 
 write_notify_script() {
-  cat > "$SWARM_TOOLS_DIR/notify-agent.sh" <<'EOF'
+  cat > "$SWARM_TOOLS_DIR/notify-agent.sh" <<EOF
 #!/usr/bin/env zsh
 set -euo pipefail
 
-PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SESSIONS_FILE="$PROJECT_DIR/.swarmforge/sessions.tsv"
-LOG_FILE="$PROJECT_DIR/logs/agent_messages.log"
+PROJECT_DIR="\$(cd "\$(dirname "\$0")/.." && pwd)"
+SESSIONS_FILE="\$PROJECT_DIR/.swarmforge/sessions.tsv"
+LOG_FILE="\$PROJECT_DIR/logs/agent_messages.log"
+TMUX_WINDOW_BASE_INDEX="$TMUX_WINDOW_BASE_INDEX"
+TMUX_PANE_BASE_INDEX="$TMUX_PANE_BASE_INDEX"
+EOF
+
+  cat >> "$SWARM_TOOLS_DIR/notify-agent.sh" <<'EOF'
 
 if [[ $# -lt 2 ]]; then
   echo "Usage: notify-agent.sh <target-role-or-index> \"message\"" >&2
@@ -270,11 +315,11 @@ MESSAGE="${*:2}"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 mkdir -p "$PROJECT_DIR/logs"
 echo "[$TIMESTAMP] [$TARGET_SESSION] $MESSAGE" >> "$LOG_FILE"
-tmux send-keys -t "${TARGET_SESSION}:0.0" -l -- "$MESSAGE"
+tmux send-keys -t "${TARGET_SESSION}:${TMUX_WINDOW_BASE_INDEX}.${TMUX_PANE_BASE_INDEX}" -l -- "$MESSAGE"
 sleep 0.15
-tmux send-keys -t "${TARGET_SESSION}:0.0" C-m
+tmux send-keys -t "${TARGET_SESSION}:${TMUX_WINDOW_BASE_INDEX}.${TMUX_PANE_BASE_INDEX}" C-m
 sleep 0.05
-tmux send-keys -t "${TARGET_SESSION}:0.0" C-j
+tmux send-keys -t "${TARGET_SESSION}:${TMUX_WINDOW_BASE_INDEX}.${TMUX_PANE_BASE_INDEX}" C-j
 EOF
 
   chmod +x "$SWARM_TOOLS_DIR/notify-agent.sh"
@@ -347,7 +392,7 @@ launch_role() {
 
   if [[ "$agent" == "none" ]]; then
     if [[ "$role" == "logger" ]]; then
-      tmux send-keys -t "${session}:${display}.0" \
+      tmux send-keys -t "${session}:${display}.${TMUX_PANE_BASE_INDEX}" \
         "cd '$WORKING_DIR' && touch logs/agent_messages.log && tail -f logs/agent_messages.log" Enter
     fi
     echo -e "  ${CYAN}[${display}]${RESET} opened without agent backend"
@@ -375,7 +420,7 @@ launch_role() {
     launch_cmd+=" >/dev/null 2>&1 &!; exit \$exit_code"
   fi
 
-  tmux send-keys -t "${session}:${display}.0" "$launch_cmd" Enter
+  tmux send-keys -t "${session}:${display}.${TMUX_PANE_BASE_INDEX}" "$launch_cmd" Enter
   echo -e "  ${CYAN}[${display}]${RESET} started in session ${session}"
 }
 
@@ -409,6 +454,7 @@ choose_cleanup_owner() {
 
 check_dependency tmux
 check_dependency git
+detect_tmux_base_indexes
 initialize_git_repo
 parse_config
 check_backend_dependencies
