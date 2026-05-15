@@ -3,6 +3,7 @@ set -euo pipefail
 
 SESSION_PREFIX="swarmforge"
 AGENT_WINDOW="swarm"
+CLAUDE_ALLOWED_TOOLS="Bash(git:*),Bash(npm:*),Bash(npx:*),mcp__atlassian,mcp__github"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -388,7 +389,7 @@ launch_role() {
 
   case "$agent" in
     claude)
-      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && claude --append-system-prompt-file '$prompt_file' --permission-mode acceptEdits -n 'SwarmForge ${display}' \"\$(cat '$prompt_file')\""
+      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && claude --append-system-prompt-file '$prompt_file' --permission-mode acceptEdits --allowedTools '$CLAUDE_ALLOWED_TOOLS' -n 'SwarmForge ${display}' \"\$(cat '$prompt_file')\""
       ;;
     codex)
       launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && codex -C '$role_worktree' \"\$(cat '$prompt_file')\""
@@ -412,15 +413,85 @@ launch_role() {
 open_terminal_window() {
   local session="$1"
   local title="$2"
+  local left="${3:-}"
+  local top="${4:-}"
+  local right="${5:-}"
+  local bottom="${6:-}"
+
+  local bounds_cmd=""
+  if [[ -n "$left" ]]; then
+    bounds_cmd="set bounds of front window to {${left}, ${top}, ${right}, ${bottom}}"
+  fi
+
   osascript <<EOF
 tell application "Terminal"
   activate
   set newTab to do script ""
   do script "cd '$WORKING_DIR' && exec tmux attach-session -t '${session}'" in newTab
   set custom title of newTab to "${title}"
+  ${bounds_cmd}
   return id of front window
 end tell
 EOF
+}
+
+get_target_display_bounds() {
+  /usr/bin/osascript -l JavaScript <<'JS' 2>/dev/null
+ObjC.import('AppKit')
+var screens = $.NSScreen.screens
+var mainHeight = screens.objectAtIndex(0).frame.size.height
+var target = null
+for (var i = 0; i < screens.count; i++) {
+  var s = screens.objectAtIndex(i)
+  var f = s.frame
+  if (Math.round(f.size.width) === 2560 && Math.round(f.size.height) === 1440) {
+    target = s.visibleFrame
+    break
+  }
+}
+if (!target) {
+  target = screens.objectAtIndex(0).visibleFrame
+}
+var lx = Math.round(target.origin.x)
+var ty = Math.round(mainHeight - (target.origin.y + target.size.height))
+var rx = Math.round(lx + target.size.width)
+var btm = Math.round(ty + target.size.height)
+lx + ' ' + ty + ' ' + rx + ' ' + btm
+JS
+}
+
+calculate_window_bounds() {
+  local index=$1
+  local total=$2
+  local d_left=$3
+  local d_top=$4
+  local d_right=$5
+  local d_bottom=$6
+
+  local rows cols
+  if (( total <= 2 )); then
+    rows=1
+    cols=$total
+  else
+    rows=2
+    cols=$(( (total + 1) / 2 ))
+  fi
+
+  local width=$(( d_right - d_left ))
+  local height=$(( d_bottom - d_top ))
+  local cell_w=$(( width / cols ))
+  local cell_h=$(( height / rows ))
+
+  local i0=$(( index - 1 ))
+  local row=$(( i0 / cols ))
+  local col=$(( i0 % cols ))
+
+  local x1=$(( d_left + col * cell_w ))
+  local y1=$(( d_top + row * cell_h ))
+  local x2=$(( x1 + cell_w ))
+  local y2=$(( y1 + cell_h ))
+
+  echo "$x1 $y1 $x2 $y2"
 }
 
 choose_cleanup_owner() {
@@ -479,8 +550,15 @@ if has_command osascript; then
   echo -e "Opening separate Terminal windows for each session..."
   : > "$WINDOW_IDS_FILE"
   : > "$WINDOW_STATE_FILE"
-  for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
-    window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}")"
+  display_bounds="$(get_target_display_bounds || true)"
+  total_windows=${#ROLES[@]}
+  for (( i = 1; i <= total_windows; i++ )); do
+    if [[ -n "$display_bounds" ]]; then
+      window_bounds="$(calculate_window_bounds "$i" "$total_windows" ${=display_bounds})"
+      window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}" ${=window_bounds})"
+    else
+      window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}")"
+    fi
     echo "$window_id" >> "$WINDOW_IDS_FILE"
     printf '%s\t%s\t%s\t%s\n' \
       "$i" \
