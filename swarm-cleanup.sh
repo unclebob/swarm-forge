@@ -9,6 +9,16 @@ fi
 WINDOW_IDS_FILE="$1"
 shift
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# WINDOW_IDS_FILE lives at <WORKING_DIR>/.swarmforge/window-ids, so the
+# working directory is two levels up.
+WORKING_DIR="$(cd "$(dirname "$(dirname "$WINDOW_IDS_FILE")")" && pwd)"
+
+if [[ -f "$SCRIPT_DIR/swarm-registry.sh" ]]; then
+  source "$SCRIPT_DIR/swarm-registry.sh"
+  registry_remove "$WORKING_DIR" || true
+fi
+
 for session in "$@"; do
   tmux kill-session -t "$session" 2>/dev/null || true
 done

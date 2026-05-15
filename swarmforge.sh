@@ -231,7 +231,7 @@ write_sessions_file() {
 
 check_helper_scripts() {
   local helper
-  for helper in swarm-cleanup.sh swarm-window-watchdog.sh swarmlog.sh; do
+  for helper in swarm-cleanup.sh swarm-window-watchdog.sh swarmlog.sh swarm-registry.sh; do
     if [[ ! -x "$SCRIPT_DIR/$helper" ]]; then
       echo -e "${RED}Error:${RESET} Required helper script not found or not executable: $SCRIPT_DIR/$helper"
       exit 1
@@ -313,6 +313,7 @@ EOF
 prepare_workspace() {
   mkdir -p "$WORKING_DIR/logs" "$WORKING_DIR/agent_context" "$STATE_DIR" "$PROMPTS_DIR" "$SWARM_TOOLS_DIR" "$WORKTREES_DIR"
   check_helper_scripts
+  source "$SCRIPT_DIR/swarm-registry.sh"
   write_sessions_file
   write_notify_script
 }
@@ -500,6 +501,7 @@ choose_cleanup_owner() {
 
 check_dependency tmux
 check_dependency git
+check_dependency jq
 remove_nonessential_clone_files
 initialize_git_repo
 parse_config
@@ -533,6 +535,8 @@ echo -e "${GREEN}Starting agents...${RESET}"
 for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
   launch_role "$i"
 done
+
+registry_add "$WORKING_DIR" || echo -e "${YELLOW}Warning: failed to register swarm in $HOME/.swarmforge/registry.json${RESET}"
 
 echo ""
 echo -e "${GREEN}${BOLD}SwarmForge is ready.${RESET}"
