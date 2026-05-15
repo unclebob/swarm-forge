@@ -11,21 +11,120 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-WORKING_DIR="${1:-$PWD}"
+usage() {
+  cat <<EOF
+Usage: swarmforge.sh [WORKING_DIR] [--name INSTANCE_ID]
+
+Arguments:
+  WORKING_DIR        Project directory (default: current directory).
+
+Options:
+  --name INSTANCE_ID Memorable name for this swarm instance. Re-launching with
+                     the same name replaces the existing instance. Allowed
+                     characters: a-z, 0-9, hyphen. Default: random 6-hex ID.
+EOF
+}
+
+CLI_WORKING_DIR=""
+CLI_INSTANCE_NAME=""
+while (( $# > 0 )); do
+  case "$1" in
+    --name)
+      if [[ $# -lt 2 || -z "$2" ]]; then
+        echo -e "${RED}Error:${RESET} --name requires a value" >&2
+        usage >&2
+        exit 1
+      fi
+      CLI_INSTANCE_NAME="$2"
+      shift 2
+      ;;
+    --name=*)
+      CLI_INSTANCE_NAME="${1#--name=}"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo -e "${RED}Error:${RESET} Unknown option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [[ -n "$CLI_WORKING_DIR" ]]; then
+        echo -e "${RED}Error:${RESET} Unexpected extra argument '$1'" >&2
+        usage >&2
+        exit 1
+      fi
+      CLI_WORKING_DIR="$1"
+      shift
+      ;;
+  esac
+done
+
+WORKING_DIR="${CLI_WORKING_DIR:-$PWD}"
 WORKING_DIR="$(cd "$WORKING_DIR" && pwd)"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+sanitize_instance_id() {
+  local input="${1:l}"
+  local cleaned
+  cleaned="${input//[^a-z0-9-]/-}"
+  cleaned="${cleaned##-}"
+  cleaned="${cleaned%%-}"
+  echo "$cleaned"
+}
+
+generate_instance_id() {
+  local hex=""
+  if [[ -r /dev/urandom ]]; then
+    hex="$(head -c 3 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  fi
+  if [[ -z "$hex" ]]; then
+    hex="$(printf '%04x%02x' $RANDOM $((RANDOM & 0xff)))"
+  fi
+  echo "${hex:0:6}"
+}
+
+compute_project_hash() {
+  local input="$1"
+  printf '%s' "$input" | shasum | cut -c1-6
+}
+
+if [[ -n "$CLI_INSTANCE_NAME" ]]; then
+  INSTANCE_ID="$(sanitize_instance_id "$CLI_INSTANCE_NAME")"
+  if [[ -z "$INSTANCE_ID" ]]; then
+    echo -e "${RED}Error:${RESET} --name '${CLI_INSTANCE_NAME}' contains no usable characters (allowed: a-z, 0-9, hyphen)" >&2
+    exit 1
+  fi
+else
+  INSTANCE_ID="$(generate_instance_id)"
+fi
+
+PROJECT_HASH="$(compute_project_hash "$WORKING_DIR")"
+
 SWARM_FORGE_DIR="$WORKING_DIR/swarmforge"
-SWARM_TOOLS_DIR="$WORKING_DIR/swarmtools"
-WORKTREES_DIR="$WORKING_DIR/.worktrees"
 CONFIG_FILE="$SWARM_FORGE_DIR/swarmforge.conf"
 ROLES_DIR="$SWARM_FORGE_DIR"
 CONSTITUTION_FILE="$SWARM_FORGE_DIR/constitution.prompt"
-STATE_DIR="$WORKING_DIR/.swarmforge"
+SWARM_ROOT="$WORKING_DIR/.swarmforge"
+INSTANCES_ROOT="$SWARM_ROOT/instances"
+STATE_DIR="$INSTANCES_ROOT/$INSTANCE_ID"
+SWARM_TOOLS_DIR="$STATE_DIR/swarmtools"
+WORKTREES_ROOT="$WORKING_DIR/.worktrees"
+WORKTREES_DIR="$WORKTREES_ROOT/$INSTANCE_ID"
 WINDOW_IDS_FILE="$STATE_DIR/window-ids"
 WINDOW_STATE_FILE="$STATE_DIR/windows.tsv"
 WINDOW_WATCHDOG_LOG="$STATE_DIR/window-watchdog.log"
 SESSIONS_FILE="$STATE_DIR/sessions.tsv"
 PROMPTS_DIR="$STATE_DIR/prompts"
+LOGS_DIR="$STATE_DIR/logs"
+LOG_FILE="$LOGS_DIR/agent_messages.log"
 
 typeset -a ROLES=()
 typeset -a AGENTS=()
@@ -52,7 +151,6 @@ ensure_initial_gitignore() {
     cat > "$gitignore_file" <<'EOF'
 .swarmforge/
 .worktrees/
-swarmtools/
 logs/
 agent_context/
 EOF
@@ -73,10 +171,6 @@ EOF
 
   if ! grep -qx '.worktrees/' "$gitignore_file"; then
     echo '.worktrees/' >> "$gitignore_file"
-  fi
-
-  if ! grep -qx 'swarmtools/' "$gitignore_file"; then
-    echo 'swarmtools/' >> "$gitignore_file"
   fi
 }
 
@@ -124,11 +218,15 @@ display_name_for_role() {
 }
 
 session_name_for_role() {
-  echo "${SESSION_PREFIX}-$1"
+  echo "${SESSION_PREFIX}-${PROJECT_HASH}-${INSTANCE_ID}-$1"
 }
 
 worktree_path_for_name() {
   echo "$WORKTREES_DIR/$1"
+}
+
+branch_name_for_worktree() {
+  echo "${SESSION_PREFIX}-${INSTANCE_ID}-$1"
 }
 
 parse_config() {
@@ -240,78 +338,58 @@ check_helper_scripts() {
 }
 
 write_notify_script() {
-  cat > "$SWARM_TOOLS_DIR/notify-agent.sh" <<'EOF'
+  cat > "$SWARM_TOOLS_DIR/notify-agent.sh" <<EOF
 #!/usr/bin/env zsh
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SESSIONS_FILE="$SESSIONS_FILE"
+LOG_FILE="$LOG_FILE"
 
-find_project_dir() {
-  local git_common_dir
-
-  if git_common_dir=$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir 2>/dev/null); then
-    if [[ "$git_common_dir" != /* ]]; then
-      git_common_dir="$(cd "$SCRIPT_DIR/$git_common_dir" && pwd)"
-    fi
-    local project_dir="${git_common_dir:h}"
-    if [[ -f "$project_dir/.swarmforge/sessions.tsv" ]]; then
-      echo "$project_dir"
-      return 0
-    fi
-  fi
-
-  echo "${SCRIPT_DIR:h}"
-}
-
-PROJECT_DIR="$(find_project_dir)"
-SESSIONS_FILE="$PROJECT_DIR/.swarmforge/sessions.tsv"
-LOG_FILE="$PROJECT_DIR/logs/agent_messages.log"
-
-if [[ $# -lt 2 ]]; then
+if [[ \$# -lt 2 ]]; then
   echo "Usage: notify-agent.sh <target-role-or-index> \"message\"" >&2
   exit 1
 fi
 
-if [[ ! -f "$SESSIONS_FILE" ]]; then
-  echo "Sessions file not found: $SESSIONS_FILE" >&2
+if [[ ! -f "\$SESSIONS_FILE" ]]; then
+  echo "Sessions file not found: \$SESSIONS_FILE" >&2
   exit 1
 fi
 
 resolve_session() {
-  local target="${1:l}"
+  local target="\${1:l}"
   local index role session display agent
 
-  while IFS=$'\t' read -r index role session display agent; do
-    if [[ "$target" == "${index:l}" || "$target" == "${role:l}" ]]; then
-      echo "$session"
+  while IFS=\$'\t' read -r index role session display agent; do
+    if [[ "\$target" == "\${index:l}" || "\$target" == "\${role:l}" ]]; then
+      echo "\$session"
       return 0
     fi
-  done < "$SESSIONS_FILE"
+  done < "\$SESSIONS_FILE"
 
   return 1
 }
 
-TARGET_SESSION=$(resolve_session "$1") || {
-  echo "Unknown target: $1" >&2
+TARGET_SESSION=\$(resolve_session "\$1") || {
+  echo "Unknown target: \$1" >&2
   exit 1
 }
 
-MESSAGE="${*:2}"
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-mkdir -p "$PROJECT_DIR/logs"
-echo "[$TIMESTAMP] [$TARGET_SESSION] $MESSAGE" >> "$LOG_FILE"
-tmux send-keys -t "${TARGET_SESSION}:0.0" -l -- "$MESSAGE"
+MESSAGE="\${*:2}"
+TIMESTAMP=\$(date '+%Y-%m-%d %H:%M:%S')
+mkdir -p "\${LOG_FILE:h}"
+echo "[\$TIMESTAMP] [\$TARGET_SESSION] \$MESSAGE" >> "\$LOG_FILE"
+tmux send-keys -t "\${TARGET_SESSION}:0.0" -l -- "\$MESSAGE"
 sleep 0.15
-tmux send-keys -t "${TARGET_SESSION}:0.0" C-m
+tmux send-keys -t "\${TARGET_SESSION}:0.0" C-m
 sleep 0.05
-tmux send-keys -t "${TARGET_SESSION}:0.0" C-j
+tmux send-keys -t "\${TARGET_SESSION}:0.0" C-j
 EOF
 
   chmod +x "$SWARM_TOOLS_DIR/notify-agent.sh"
 }
 
 prepare_workspace() {
-  mkdir -p "$WORKING_DIR/logs" "$WORKING_DIR/agent_context" "$STATE_DIR" "$PROMPTS_DIR" "$SWARM_TOOLS_DIR" "$WORKTREES_DIR"
+  mkdir -p "$WORKING_DIR/agent_context" "$STATE_DIR" "$PROMPTS_DIR" "$SWARM_TOOLS_DIR" "$WORKTREES_DIR" "$LOGS_DIR"
   check_helper_scripts
   source "$SCRIPT_DIR/swarm-registry.sh"
   write_sessions_file
@@ -323,7 +401,7 @@ prepare_worktrees() {
   for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
     worktree_name="${WORKTREE_NAMES[$i]}"
     worktree_path="${WORKTREE_PATHS[$i]}"
-    branch_name="swarmforge-${worktree_name}"
+    branch_name="$(branch_name_for_worktree "$worktree_name")"
 
     if [[ "$worktree_name" == "none" || "$worktree_name" == "master" ]]; then
       continue
@@ -380,7 +458,7 @@ launch_role() {
   if [[ "$agent" == "none" ]]; then
     if [[ "$role" == "logger" ]]; then
       tmux send-keys -t "${session}:${display}.0" \
-        "cd '$WORKING_DIR' && touch logs/agent_messages.log && tail -f logs/agent_messages.log" Enter
+        "cd '$WORKING_DIR' && mkdir -p '$LOGS_DIR' && touch '$LOG_FILE' && tail -f '$LOG_FILE'" Enter
     fi
     echo -e "  ${CYAN}[${display}]${RESET} opened without agent backend"
     return
@@ -398,7 +476,7 @@ launch_role() {
   esac
 
   if [[ "$index" -eq "${CLEANUP_OWNER_INDEX}" ]]; then
-    launch_cmd="${launch_cmd}; exit_code=\$?; nohup '$SCRIPT_DIR/swarm-cleanup.sh' '$WINDOW_IDS_FILE'"
+    launch_cmd="${launch_cmd}; exit_code=\$?; nohup '$SCRIPT_DIR/swarm-cleanup.sh' '$WORKING_DIR' '$INSTANCE_ID'"
     local session_name
     for session_name in "${SESSIONS[@]}"; do
       [[ -n "$session_name" ]] || continue
@@ -536,17 +614,18 @@ for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
   launch_role "$i"
 done
 
-registry_add "$WORKING_DIR" || echo -e "${YELLOW}Warning: failed to register swarm in $HOME/.swarmforge/registry.json${RESET}"
+registry_add "$WORKING_DIR" "$INSTANCE_ID" || echo -e "${YELLOW}Warning: failed to register swarm in $HOME/.swarmforge/registry.json${RESET}"
 
 echo ""
 echo -e "${GREEN}${BOLD}SwarmForge is ready.${RESET}"
 echo -e "Working directory: ${WORKING_DIR}"
+echo -e "Instance:          ${INSTANCE_ID}"
 echo -e "Sessions:"
 for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
   echo -e "  ${DISPLAY_NAMES[$i]}: ${SESSIONS[$i]}"
 done
 echo ""
-echo -e "${GREEN}Tip: Use $WORKING_DIR/swarmtools/notify-agent.sh <role-or-index> \"message\" while the swarm is running.${RESET}"
+echo -e "${GREEN}Tip: Use $SWARM_TOOLS_DIR/notify-agent.sh <role-or-index> \"message\" while the swarm is running.${RESET}"
 echo -e "${GREEN}Tip: Reattach manually with 'tmux attach-session -t <session-name>' if needed.${RESET}"
 echo ""
 
@@ -559,16 +638,16 @@ if has_command osascript; then
   for (( i = 1; i <= total_windows; i++ )); do
     if [[ -n "$display_bounds" ]]; then
       window_bounds="$(calculate_window_bounds "$i" "$total_windows" ${=display_bounds})"
-      window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}" ${=window_bounds})"
+      window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge [${INSTANCE_ID}] ${DISPLAY_NAMES[$i]}" ${=window_bounds})"
     else
-      window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}")"
+      window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge [${INSTANCE_ID}] ${DISPLAY_NAMES[$i]}")"
     fi
     echo "$window_id" >> "$WINDOW_IDS_FILE"
     printf '%s\t%s\t%s\t%s\n' \
       "$i" \
       "$window_id" \
       "${SESSIONS[$i]}" \
-      "SwarmForge ${DISPLAY_NAMES[$i]}" >> "$WINDOW_STATE_FILE"
+      "SwarmForge [${INSTANCE_ID}] ${DISPLAY_NAMES[$i]}" >> "$WINDOW_STATE_FILE"
   done
   nohup "$SCRIPT_DIR/swarm-window-watchdog.sh" \
     "$WINDOW_STATE_FILE" \

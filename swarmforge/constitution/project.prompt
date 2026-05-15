@@ -2,6 +2,6 @@
 
 - This project is configured for SwarmForge with four Codex-backed agents: specifier, coder, refactorer, and architect.
 - Preserve project-local SwarmForge configuration under `swarmforge/`.
-- Keep swarm state local under `.swarmforge/`, worktrees under `.worktrees/`, helper scripts under `swarmtools/`, logs under `logs/`, and shared agent context under `agent_context/`.
+- Keep swarm state local under `.swarmforge/instances/<instance-id>/`, worktrees under `.worktrees/<instance-id>/`, and shared agent context under `agent_context/`. Per-instance helpers (notify-agent.sh) and logs live inside the instance state directory.
 - Prefer small, explicit handoffs with clear branch names, commit hashes, and changed behavior.
 - Do not change another role's prompt or workflow ownership without explicit user direction.

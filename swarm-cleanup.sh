@@ -1,22 +1,22 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-if [[ $# -lt 1 ]]; then
-  echo "Usage: swarm-cleanup.sh <window-ids-file> [session ...]" >&2
+if [[ $# -lt 2 ]]; then
+  echo "Usage: swarm-cleanup.sh <working-dir> <instance-id> [session ...]" >&2
   exit 1
 fi
 
-WINDOW_IDS_FILE="$1"
-shift
+WORKING_DIR="$1"
+INSTANCE_ID="$2"
+shift 2
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# WINDOW_IDS_FILE lives at <WORKING_DIR>/.swarmforge/window-ids, so the
-# working directory is two levels up.
-WORKING_DIR="$(cd "$(dirname "$(dirname "$WINDOW_IDS_FILE")")" && pwd)"
+STATE_DIR="$WORKING_DIR/.swarmforge/instances/$INSTANCE_ID"
+WINDOW_IDS_FILE="$STATE_DIR/window-ids"
 
 if [[ -f "$SCRIPT_DIR/swarm-registry.sh" ]]; then
   source "$SCRIPT_DIR/swarm-registry.sh"
-  registry_remove "$WORKING_DIR" || true
+  registry_remove "$WORKING_DIR" "$INSTANCE_ID" || true
 fi
 
 for session in "$@"; do

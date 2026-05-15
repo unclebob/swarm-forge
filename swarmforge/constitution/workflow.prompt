@@ -3,7 +3,7 @@
 - At startup, discover and remember the branch or worktree assigned to your role.
 - If your assigned worktree is `master`, work in the main project checkout on its current branch; do not expect or create a `.worktrees/<role>` directory for that role.
 - Work only in your assigned branch or worktree.
-- Use the project-local `swarmtools/notify-agent.sh` helper for handoffs between agents.
+- Use the `notify-agent.sh` helper at the absolute path provided in your launch prompt for handoffs between agents.
 - Start every handoff message with: `Review your rules.`
 - Every handoff must include the branch name, commit hash, and what changed.
 - If one or more messages arrive while you are busy:

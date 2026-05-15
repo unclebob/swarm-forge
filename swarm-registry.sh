@@ -7,10 +7,11 @@
 # working directories cannot clobber each other's writes.
 #
 # Registry shape:
-#   { "swarms": [ { "workingDirectory": "...", "startedAt": "..." }, ... ] }
+#   { "swarms": [ { "workingDirectory": "...", "instanceId": "...", "startedAt": "..." }, ... ] }
 #
-# workingDirectory is the unique key — a swarm overwrites any existing
-# entry for the same directory on registry_add.
+# (workingDirectory, instanceId) is the composite unique key — a swarm
+# overwrites any existing entry for the same directory + instance on
+# registry_add. Multiple instances per project coexist as separate entries.
 
 set -u
 
@@ -51,6 +52,11 @@ registry_lock_release() {
 
 registry_add() {
   local working_dir="$1"
+  local instance_id="${2:-}"
+  if [[ -z "$instance_id" ]]; then
+    echo "swarm-registry: registry_add requires <working_dir> <instance_id>" >&2
+    return 1
+  fi
   local started_at
   started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
@@ -59,14 +65,15 @@ registry_add() {
 
   local tmp="${REGISTRY_FILE}.tmp.$$"
   if jq --arg dir "$working_dir" \
+        --arg instance "$instance_id" \
         --arg started "$started_at" \
-        '.swarms |= ((map(select(.workingDirectory != $dir))) + [{workingDirectory: $dir, startedAt: $started}])' \
+        '.swarms |= ((map(select(.workingDirectory != $dir or .instanceId != $instance))) + [{workingDirectory: $dir, instanceId: $instance, startedAt: $started}])' \
         "$REGISTRY_FILE" > "$tmp"; then
     mv "$tmp" "$REGISTRY_FILE"
   else
     rm -f "$tmp"
     registry_lock_release
-    echo "swarm-registry: failed to write entry for $working_dir" >&2
+    echo "swarm-registry: failed to write entry for $working_dir ($instance_id)" >&2
     return 1
   fi
 
@@ -75,6 +82,11 @@ registry_add() {
 
 registry_remove() {
   local working_dir="$1"
+  local instance_id="${2:-}"
+  if [[ -z "$instance_id" ]]; then
+    echo "swarm-registry: registry_remove requires <working_dir> <instance_id>" >&2
+    return 1
+  fi
 
   registry_lock_acquire || return 1
 
@@ -85,13 +97,14 @@ registry_remove() {
 
   local tmp="${REGISTRY_FILE}.tmp.$$"
   if jq --arg dir "$working_dir" \
-        '.swarms |= map(select(.workingDirectory != $dir))' \
+        --arg instance "$instance_id" \
+        '.swarms |= map(select(.workingDirectory != $dir or .instanceId != $instance))' \
         "$REGISTRY_FILE" > "$tmp"; then
     mv "$tmp" "$REGISTRY_FILE"
   else
     rm -f "$tmp"
     registry_lock_release
-    echo "swarm-registry: failed to remove entry for $working_dir" >&2
+    echo "swarm-registry: failed to remove entry for $working_dir ($instance_id)" >&2
     return 1
   fi
 

@@ -16,10 +16,11 @@ SwarmForge is a lightweight, tmux-based orchestration layer that:
 - Creates one tmux session and one Terminal window per configured role
 - Reads behavior from project-local `swarmforge/<role>.prompt` files plus a layered `swarmforge/constitution.prompt`
 - Supports per-role backends such as `claude`, `codex`, or `none`
-- Creates a project-local `swarmtools/` directory with notification helpers for the active swarm
-- Creates one git worktree per configured role under `.worktrees/`
+- Supports **multiple concurrent swarms per project**, each isolated under its own instance ID
+- Creates a per-instance `notify-agent.sh` helper inside the instance's state directory
+- Creates one git worktree per configured role under `.worktrees/<instance-id>/`
 - Initializes a git repository in a new working directory and creates a first commit with `logs/` and `agent_context/` ignored
-- Keeps all swarm state local to the working directory in `.swarmforge/`
+- Keeps all swarm state local to the working directory in `.swarmforge/instances/<instance-id>/`
 
 ## Core Features
 
@@ -63,12 +64,12 @@ The default three-agent workflow is:
 2. Put `swarmforge.conf`, `constitution.prompt`, and one `<role>.prompt` file per configured role inside it. If needed, add subordinate files under `swarmforge/constitution/`.
 3. In `swarmforge/swarmforge.conf`, define each window as `window <role> <agent> <worktree>`.
 4. Add `swarmforge.sh` to your shell `PATH` before startup.
-5. Run `swarmforge.sh <working-directory>` or run it from inside that directory.
-6. If the working directory is not already a git repo, startup runs `git init`, renames the initial branch to `master`, writes `.gitignore` entries for `.swarmforge/`, `.worktrees/`, `swarmtools/`, `logs/`, and `agent_context/`, and makes the first commit from the current project state.
-7. Startup creates a git worktree for each window under `.worktrees/<worktree>`, unless the worktree field is `none` or `master`.
-8. Startup creates `swarmtools/notify-agent.sh` for that project.
-9. SwarmForge creates tmux sessions, opens Terminal windows, and launches each configured backend in its assigned worktree.
-10. Roles communicate through helper commands such as `notify-agent.sh`.
+5. Run `swarmforge.sh <working-directory> [--name <instance-id>]` or run it from inside that directory. Each launch creates a fresh **swarm instance**; pass `--name` to assign a memorable ID (re-launching with the same name replaces that instance). Without `--name`, a random 6-hex ID is generated.
+6. If the working directory is not already a git repo, startup runs `git init`, renames the initial branch to `master`, writes `.gitignore` entries for `.swarmforge/`, `.worktrees/`, `logs/`, and `agent_context/`, and makes the first commit from the current project state.
+7. Startup creates a git worktree for each window under `.worktrees/<instance-id>/<worktree>` on branch `swarmforge-<instance-id>-<worktree>`, unless the worktree field is `none` or `master`.
+8. Startup creates `.swarmforge/instances/<instance-id>/swarmtools/notify-agent.sh` scoped to that instance.
+9. SwarmForge creates tmux sessions (named `swarmforge-<project-hash>-<instance-id>-<role>`), opens Terminal windows titled `SwarmForge [<instance-id>] <Role>`, and launches each configured backend in its assigned worktree.
+10. Roles communicate through helper commands such as `notify-agent.sh` — the absolute path is injected into each agent's launch prompt.
 
 ## The `swarmforge.conf` File
 
@@ -107,14 +108,14 @@ window architect codex architect
 
 `logger` is a utility role. When configured with `none`, it tails `logs/agent_messages.log`.
 
-In the example above, the agents run in these worktrees:
+In the example above, the agents run in these worktrees (with instance ID `<id>`):
 
 - `coordinator` -> main working directory on `master`, and is the cleanup window because it is listed first
-- `coder` -> `.worktrees/coder`
-- `refactorer` -> `.worktrees/refactorer`
-- `architect` -> `.worktrees/architect`
+- `coder` -> `.worktrees/<id>/coder`
+- `refactorer` -> `.worktrees/<id>/refactorer`
+- `architect` -> `.worktrees/<id>/architect`
 
-If a window uses `master` as its worktree name, SwarmForge does not create `.worktrees/master`; that role runs in the main working directory on the `master` branch.
+If a window uses `master` as its worktree name, SwarmForge does not create a worktree directory for it; that role runs in the main working directory on the `master` branch. Note that all instances of the same project share the `master` worktree.
 
 ## Examples
 
@@ -135,3 +136,12 @@ Use these example directories as starting points for project-local `swarmforge/`
 ## Running SwarmForge
 
 Just type `swarm`. The windows should all pop up.
+
+To run multiple swarms in the same project simultaneously, give each one a `--name`:
+
+```sh
+swarm --name auth-refactor
+swarm --name perf-pass
+```
+
+Each named instance gets its own tmux sessions, Terminal windows, worktrees, and state directory under `.swarmforge/instances/<name>/`.
