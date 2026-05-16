@@ -148,3 +148,25 @@ Use these example directories as starting points for project-local `swarmforge/`
 ## Running SwarmForge
 
 Just type `swarm`. The windows should all pop up.
+
+## Context Hygiene For Long-Running Swarms
+
+Agents accumulate context across every slice. After dozens of slices, sessions can run hundreds of thousands of tokens deep — expensive per call, and a real risk for subtle drift (forgetting earlier rules, conflating patterns across slices, repeating corrected mistakes).
+
+Two disciplines keep the swarm performant without losing useful continuity:
+
+- **`/compact` between sub-slices.** After each slice merges and both agents are idle, send `/compact` via `notify-agent.sh`. The agent's harness summarizes verbose intermediate tool-call and test-output noise while preserving the high-signal context — constitution rules, established patterns, reviewer-flagged carry-forwards.
+- **`/clear` at phase boundaries.** When a major plan phase closes, send `/clear` before the first slice of the next phase. The agent re-reads its role prompt and the constitution on its next prompt and bootstraps fresh.
+
+Within a slice, do nothing — mid-slice continuity matters; let the agent finish.
+
+If a `/compact` visibly drops important context (agent forgets a carry-forward, references a wrong pattern), escalate to `/clear` immediately.
+
+Both are slash commands the agent harness interprets in its conversation buffer:
+
+```bash
+swarmtools/notify-agent.sh coder "/compact"
+swarmtools/notify-agent.sh reviewer "/compact"
+```
+
+When a backend doesn't expose `/compact` / `/clear` as slash commands, the guidance applies in spirit; check your harness for equivalents.
