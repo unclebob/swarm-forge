@@ -2,5 +2,7 @@
 .env
 .claude/
 .swarmforge/
+.worktrees/
+swarmtools/
 logs/
 agent_context/

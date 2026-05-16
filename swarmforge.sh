@@ -25,6 +25,8 @@ ROLES_DIR="$SWARM_FORGE_DIR"
 CONSTITUTION_FILE="$SWARM_FORGE_DIR/constitution.prompt"
 STATE_DIR="$WORKING_DIR/.swarmforge"
 WINDOW_IDS_FILE="$STATE_DIR/window-ids"
+WINDOW_STATE_FILE="$STATE_DIR/windows.tsv"
+WINDOW_WATCHDOG_LOG="$STATE_DIR/window-watchdog.log"
 SESSIONS_FILE="$STATE_DIR/sessions.tsv"
 PROMPTS_DIR="$STATE_DIR/prompts"
 
@@ -95,6 +97,14 @@ initialize_git_repo() {
 
 has_command() {
   command -v "$1" &>/dev/null
+}
+
+remove_nonessential_clone_files() {
+  if [[ "${WORKING_DIR:t}" == "swarm-forge" ]]; then
+    return
+  fi
+
+  rm -rf "$WORKING_DIR/README.md" "$WORKING_DIR/SwarmForgeInitSpec.md" "$WORKING_DIR/examples"
 }
 
 display_name_for_role() {
@@ -224,7 +234,7 @@ write_sessions_file() {
 
 check_helper_scripts() {
   local helper
-  for helper in swarm-cleanup.sh swarmlog.sh; do
+  for helper in swarm-cleanup.sh swarm-window-watchdog.sh swarmlog.sh; do
     if [[ ! -x "$SCRIPT_DIR/$helper" ]]; then
       echo -e "${RED}Error:${RESET} Required helper script not found or not executable: $SCRIPT_DIR/$helper"
       exit 1
@@ -237,7 +247,26 @@ write_notify_script() {
 #!/usr/bin/env zsh
 set -euo pipefail
 
-PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+find_project_dir() {
+  local git_common_dir
+
+  if git_common_dir=$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir 2>/dev/null); then
+    if [[ "$git_common_dir" != /* ]]; then
+      git_common_dir="$(cd "$SCRIPT_DIR/$git_common_dir" && pwd)"
+    fi
+    local project_dir="${git_common_dir:h}"
+    if [[ -f "$project_dir/.swarmforge/sessions.tsv" ]]; then
+      echo "$project_dir"
+      return 0
+    fi
+  fi
+
+  echo "${SCRIPT_DIR:h}"
+}
+
+PROJECT_DIR="$(find_project_dir)"
 SESSIONS_FILE="$PROJECT_DIR/.swarmforge/sessions.tsv"
 LOG_FILE="$PROJECT_DIR/logs/agent_messages.log"
 
@@ -285,7 +314,7 @@ EOF
 }
 
 prepare_workspace() {
-  mkdir -p "$WORKING_DIR/logs" "$WORKING_DIR/agent_context" "$WORKING_DIR/features" "$STATE_DIR" "$PROMPTS_DIR" "$SWARM_TOOLS_DIR" "$WORKTREES_DIR"
+  mkdir -p "$WORKING_DIR/logs" "$WORKING_DIR/agent_context" "$STATE_DIR" "$PROMPTS_DIR" "$SWARM_TOOLS_DIR" "$WORKTREES_DIR"
   check_helper_scripts
   write_sessions_file
   write_notify_script
@@ -336,6 +365,7 @@ write_agent_instruction_file() {
   cat > "$prompt_file" <<EOF
 Read swarmforge/constitution.prompt, then read every file it refers to recursively, and obey all of those instructions.
 Read swarmforge/${role}.prompt, then read every file it refers to recursively, and follow all of those instructions.
+For handoffs, run $SWARM_TOOLS_DIR/notify-agent.sh directly instead of relying on PATH lookup.
 EOF
 }
 
@@ -452,21 +482,12 @@ EOF
 }
 
 choose_cleanup_owner() {
-  if [[ -n "${ROLE_INDEX[architect]:-}" && "${AGENTS[$((ROLE_INDEX[architect] + 1))]}" != "none" ]]; then
-    CLEANUP_OWNER_INDEX=$((ROLE_INDEX[architect] + 1))
-    return
-  fi
-
-  for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
-    if [[ "${AGENTS[$i]}" != "none" ]]; then
-      CLEANUP_OWNER_INDEX=$i
-      return
-    fi
-  done
+  CLEANUP_OWNER_INDEX=1
 }
 
 check_dependency tmux
 check_dependency git
+remove_nonessential_clone_files
 initialize_git_repo
 parse_config
 check_backend_dependencies
@@ -515,9 +536,21 @@ echo ""
 if has_command osascript; then
   echo -e "Opening separate Terminal windows for each session..."
   : > "$WINDOW_IDS_FILE"
+  : > "$WINDOW_STATE_FILE"
   for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
-    open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}" >> "$WINDOW_IDS_FILE"
+    window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}")"
+    echo "$window_id" >> "$WINDOW_IDS_FILE"
+    printf '%s\t%s\t%s\t%s\n' \
+      "$i" \
+      "$window_id" \
+      "${SESSIONS[$i]}" \
+      "SwarmForge ${DISPLAY_NAMES[$i]}" >> "$WINDOW_STATE_FILE"
   done
+  nohup "$SCRIPT_DIR/swarm-window-watchdog.sh" \
+    "$WINDOW_STATE_FILE" \
+    "$WINDOW_IDS_FILE" \
+    "$CLEANUP_OWNER_INDEX" \
+    "$WORKING_DIR" > "$WINDOW_WATCHDOG_LOG" 2>&1 &
 else
   echo -e "${YELLOW}osascript not found; attaching current shell to '${SESSIONS[$CLEANUP_OWNER_INDEX]}' instead.${RESET}"
   tmux attach-session -t "${SESSIONS[$CLEANUP_OWNER_INDEX]}"

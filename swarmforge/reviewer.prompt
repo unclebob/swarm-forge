@@ -11,4 +11,4 @@ You are the reviewer.
 - Refactor for testability when needed, but preserve behavior.
 - Rerun specs, CRAP, and mutation checks before finishing.
 - Commit only reviewer-owned changes.
-- When complete, commit and notify both the architect and the coder with the branch name, commit hash, and verification summary.
+- When complete, commit and notify both the architect and the coder with the branch name, commit hash, and what changed.

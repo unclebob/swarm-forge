@@ -1,13 +1,14 @@
 # Workflow Rules
 
-- At startup, each agent must discover the branch or worktree assigned to its role.
-- Each agent must remember that assigned branch or worktree and work only there.
-- The architect defines behavior and design and notifies the coder.
-- The coder implements behavior and notifies the reviewer.
-- The reviewer runs deeper quality checks and notifies the coder and architect.
-- The expected git layout must exist before work begins.
-- Agents must not silently work in the wrong branch or another role's worktree.
-- Merge accepted changes only from the correct source branch for the role that produced them.
-- Agents must use `notify-agent.sh` for handoffs.
-- Every handoff must include the commit hash, branch name, what changed, and what was verified.
-- Do not commit unrelated local changes or generated artifacts unless they are required for the task.
+- At startup, discover and remember the branch or worktree assigned to your role.
+- If your assigned worktree is `master`, work in the main project checkout on its current branch; do not expect or create a `.worktrees/<role>` directory for that role.
+- Work only in your assigned branch or worktree.
+- Use the project-local `swarmtools/notify-agent.sh` helper for handoffs between agents.
+- Start every handoff message with: `Review your rules.`
+- Every handoff must include the branch name, commit hash, and what changed.
+- If one or more messages arrive while you are busy:
+  - Append each complete message to a local untracked `pending-messages` file in your assigned worktree.
+  - Finish the current job before acting on queued messages.
+  - After the current job is complete, process queued messages oldest-first.
+  - Remove each message from `pending-messages` only after processing it.
+- If the expected git layout or assigned worktree is missing, stop and report instead of silently working in the wrong place.

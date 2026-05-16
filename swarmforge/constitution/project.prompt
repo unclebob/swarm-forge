@@ -1,7 +1,7 @@
 # Project Rules
 
-- This project is SwarmForge, a tmux-based agent orchestration platform.
-- Preserve the config-driven launcher model centered on `swarmforge/swarmforge.conf`, `swarmforge/<role>.prompt`, and `swarmforge/constitution.prompt`.
-- Keep swarm state project-local under `.swarmforge/`, worktrees under `.worktrees/`, and helper scripts under `swarmtools/`.
-- Prefer simple shell-based orchestration over adding heavier runtime infrastructure.
-- Maintain clear role boundaries, reliable startup behavior, and explicit agent handoff mechanisms.
+- This project is configured for SwarmForge with four Codex-backed agents: specifier, coder, refactorer, and architect.
+- Preserve project-local SwarmForge configuration under `swarmforge/`.
+- Keep swarm state local under `.swarmforge/`, worktrees under `.worktrees/`, helper scripts under `swarmtools/`, logs under `logs/`, and shared agent context under `agent_context/`.
+- Prefer small, explicit handoffs with clear branch names, commit hashes, and changed behavior.
+- Do not change another role's prompt or workflow ownership without explicit user direction.
