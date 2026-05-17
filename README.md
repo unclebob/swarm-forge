@@ -15,7 +15,7 @@ SwarmForge is a lightweight, tmux-based orchestration layer that:
 - Launches a **config-driven swarm** from a project-local `swarmforge/swarmforge.conf`
 - Creates one tmux session and one Terminal window per configured role
 - Reads behavior from project-local `swarmforge/<role>.prompt` files plus a layered `swarmforge/constitution.prompt`
-- Supports per-role backends such as `claude`, `codex`, or `none`
+- Supports per-role backends such as `claude`, `codex`, `copilot`, or `none`
 - Creates a project-local `swarmtools/` directory with notification helpers for the active swarm
 - Creates one git worktree per configured role under `.worktrees/`
 - Initializes a git repository in a new working directory and creates a first commit with `logs/` and `agent_context/` ignored
@@ -26,7 +26,7 @@ SwarmForge is a lightweight, tmux-based orchestration layer that:
 - **Config-Driven Topology** — The swarm shape comes from `swarmforge/swarmforge.conf`, not hardcoded shell variables.
 - **Project-Local Roles** — Each role is defined by `swarmforge/<role>.prompt` in the working tree being orchestrated.
 - **Layered Constitution** — `swarmforge/constitution.prompt` can delegate to subordinate files such as `swarmforge/constitution/project.prompt`, `engineering.prompt`, and `workflow.prompt`.
-- **Backend Selection Per Role** — A role can launch `claude`, `codex`, or no agent at all.
+- **Backend Selection Per Role** — A role can launch `claude`, `codex`, `copilot`, or no agent at all.
 - **Observable Swarm** — Open one Terminal window per role and watch the sessions in real time.
 - **Self-Hosted & Lightweight** — Runs locally in tmux and Terminal with minimal machinery.
 

@@ -181,7 +181,7 @@ parse_config() {
     fi
 
     case "$agent" in
-      claude|codex|none) ;;
+      claude|codex|copilot|none) ;;
       *)
         echo -e "${RED}Error:${RESET} Unsupported agent '$agent' for role '$role'"
         exit 1
@@ -341,6 +341,7 @@ check_backend_dependencies() {
     case "${AGENTS[$i]}" in
       claude) check_dependency claude ;;
       codex) check_dependency codex ;;
+      copilot) check_dependency copilot ;;
     esac
   done
 }
@@ -392,6 +393,9 @@ launch_role() {
       ;;
     codex)
       launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && codex -C '$role_worktree' \"\$(cat '$prompt_file')\""
+      ;;
+    copilot)
+      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && copilot \"\$(cat '$prompt_file')\""
       ;;
   esac
 
