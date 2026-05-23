@@ -1,0 +1,20 @@
+# Workflow Rules
+
+- At startup, each agent must discover the branch or worktree assigned to its role.
+- Each agent must remember its assigned branch or worktree and work only there.
+- The architect defines behavior and acceptance criteria, then notifies the coder.
+- The coder implements one small slice at a time and notifies the reviewer.
+- The reviewer runs deeper quality checks and notifies the coder and architect.
+- The expected git layout must exist before work begins. Agents repair it or stop and report if it is missing.
+- Agents must not silently work in the wrong branch or another role's worktree.
+- Merge accepted changes only from the correct source branch for the role that produced them.
+- Agents must use `swarmtools/notify-agent.sh` for handoffs.
+- Every handoff must include the commit hash, branch name, what changed, and what was verified.
+- Do not commit unrelated local changes or generated artifacts unless they are required for the slice.
+
+## Context Hygiene
+
+- Between sub-slices, send `/compact` to idle agents to summarize verbose intermediate tool-call and test-output noise while preserving constitution rules and reviewer carry-forwards.
+- At major plan-phase boundaries, send `/clear` before the first slice of the next phase so the agent re-reads its role prompt and constitution fresh.
+- Within a slice, send nothing. Mid-slice continuity matters; let the agent finish.
+- If a `/compact` visibly drops important context, escalate to `/clear` on the affected agent.

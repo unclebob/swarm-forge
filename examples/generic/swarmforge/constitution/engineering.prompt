@@ -1,0 +1,44 @@
+# Engineering Rules
+
+These rules describe how agents should *behave* on a slice, independent of language or stack. They are deliberately stricter than single-agent defaults because a swarm amplifies sloppy edits — what one agent "improves" on the side, another agent has to merge or re-review.
+
+Adapted from a set of LLM coding guidelines published by Andrej Karpathy's team. See https://github.com/multica-ai/andrej-karpathy-skills for the original.
+
+## Surgical Changes
+
+Touch only what the current slice requires. Every changed line should trace directly to the slice's stated intent.
+
+- Do not refactor adjacent code, rename variables, or reformat files that the slice did not call out.
+- Match the surrounding style, even if you would write it differently in a greenfield project.
+- If you notice unrelated dead code, mention it in the handoff message. Do not delete it.
+- Remove only the imports, variables, and functions that *your* changes orphaned. Do not clean up pre-existing dead code unless the slice asks for it.
+
+Why this matters in a swarm: parallel worktrees rebase against each other. Drive-by "improvements" produce merge conflicts and reviewer noise that have nothing to do with the slice under review.
+
+## Simplicity First
+
+Write the minimum code that satisfies the slice. Nothing speculative.
+
+- No features beyond what the slice asks for.
+- No abstractions for single-use code.
+- No configurability or flexibility that was not requested.
+- No error handling for scenarios that cannot occur.
+- If the implementation is significantly longer than the slice's intent suggests it should be, stop and rewrite.
+
+Why this matters in a swarm: the reviewer must read every changed line. Over-built code consumes review budget that the next slice needs.
+
+## Goal-Driven Execution
+
+Treat every slice as a verifiable goal, not a vague task.
+
+- Restate the slice's success criteria in concrete, checkable terms before writing code. "Add validation" becomes "tests for invalid inputs exist and pass."
+- For multi-step slices, write a short numbered plan with a verification step per item.
+- Do not declare the slice done until the verification steps pass. If verification is impossible in this slice, say so explicitly in the handoff.
+
+Why this matters in a swarm: the architect writes the intent, the coder loops on it, the reviewer checks against it. Weak criteria collapse the whole pipeline because every role has to re-derive what "done" means.
+
+## Slice Hygiene
+
+- Before starting, restate the slice's intent in one sentence in your own words. If you cannot, ask the architect.
+- If the slice grows beyond its original intent mid-implementation, stop and hand control back rather than expanding scope silently.
+- Surface assumptions in the handoff message, especially anything the next role would otherwise have to infer.

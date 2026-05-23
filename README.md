@@ -132,6 +132,7 @@ See `examples/clojureHTW-pairs/swarmforge/coder.base.prompt` and `reviewer.base.
 
 The repository includes example swarm definitions under `examples/`.
 
+- `examples/generic/swarmforge/` is a stack-agnostic starter: a layered constitution with behavioral engineering rules adapted for parallel-worktree swarms, plus role prompts for architect/coder/reviewer that don't lock you into a specific test framework.
 - `examples/clojureHTW/swarmforge/` shows a layered constitution and agent prompts for a Clojure Hunt The Wumpus project, including a queueing rule for messages that arrive while an agent is busy.
 - `examples/clojureHTW-pairs/swarmforge/` extends the same project with two parallel coder/reviewer pairs (`coder-a`+`reviewer-a`, `coder-b`+`reviewer-b`) coordinated by a single architect. Use this layout when you want slices of work to run in parallel and the architect to serialize merges back to `master`.
 

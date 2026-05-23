@@ -1,0 +1,11 @@
+# Project Rules
+
+Replace this file with rules specific to your project. Examples of what belongs here:
+
+- What the project *is* — a one-line description of the user-visible product.
+- Stack constraints — language, runtime, framework, package manager, target platforms.
+- Non-negotiable product rules — accessibility floors, supported browsers, offline behavior, mobile-first requirements.
+- External integrations the project must respect — APIs, data sources, deployment targets.
+- Anything domain-specific that engineering and workflow rules should defer to.
+
+Keep this file short. If a rule applies to every project the team runs, it belongs in `engineering.prompt` or `workflow.prompt` instead.
