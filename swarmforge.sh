@@ -400,7 +400,7 @@ launch_role() {
   esac
 
   if [[ "$index" -eq "${CLEANUP_OWNER_INDEX}" ]]; then
-    launch_cmd="${launch_cmd}; exit_code=\$?; nohup '$SCRIPT_DIR/swarm-cleanup.sh' '$WINDOW_IDS_FILE'"
+    launch_cmd="${launch_cmd}; exit_code=\$?; TERM_PROGRAM='${TERM_PROGRAM:-}' nohup '$SCRIPT_DIR/swarm-cleanup.sh' '$WINDOW_IDS_FILE'"
     local session_name
     for session_name in "${SESSIONS[@]}"; do
       [[ -n "$session_name" ]] || continue
@@ -416,6 +416,41 @@ launch_role() {
 open_terminal_window() {
   local session="$1"
   local title="$2"
+  local sibling_tab_id="${3:-}"
+
+  if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
+    osascript - "$WORKING_DIR" "$session" "$sibling_tab_id" <<'APPLESCRIPT'
+on run argv
+  set workingDir to item 1 of argv
+  set tmuxSession to item 2 of argv
+  set siblingTabId to item 3 of argv
+  set initialCmd to "cd " & quoted form of workingDir & " && exec tmux attach-session -t " & quoted form of tmuxSession & linefeed
+  tell application "Ghostty"
+    set cfg to new surface configuration
+    set initial working directory of cfg to workingDir
+    set initial input of cfg to initialCmd
+    if siblingTabId is "" then
+      set newWin to new window with configuration cfg
+      return id of (first tab of newWin)
+    end if
+    set targetWin to missing value
+    repeat with w in windows
+      repeat with t in tabs of w
+        if (id of t as string) is siblingTabId then
+          set targetWin to w
+          exit repeat
+        end if
+      end repeat
+      if targetWin is not missing value then exit repeat
+    end repeat
+    set newTab to new tab in targetWin with configuration cfg
+    return id of newTab
+  end tell
+end run
+APPLESCRIPT
+    return
+  fi
+
   osascript <<EOF
 tell application "Terminal"
   activate
@@ -483,8 +518,12 @@ if has_command osascript; then
   echo -e "Opening separate Terminal windows for each session..."
   : > "$WINDOW_IDS_FILE"
   : > "$WINDOW_STATE_FILE"
+  ghostty_first_tab_id=""
   for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
-    window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}")"
+    window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}" "$ghostty_first_tab_id")"
+    if [[ "${TERM_PROGRAM:-}" == "ghostty" && -z "$ghostty_first_tab_id" ]]; then
+      ghostty_first_tab_id="$window_id"
+    fi
     echo "$window_id" >> "$WINDOW_IDS_FILE"
     printf '%s\t%s\t%s\t%s\n' \
       "$i" \

@@ -13,6 +13,26 @@ window_exists() {
   local window_id="$1"
   [[ -n "$window_id" ]] || return 1
 
+  if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
+    local ghostty_result
+    ghostty_result="$(osascript - "$window_id" <<'APPLESCRIPT' 2>/dev/null || true
+on run argv
+  set targetId to item 1 of argv
+  tell application "Ghostty"
+    repeat with w in windows
+      repeat with t in tabs of w
+        if (id of t as string) is targetId then return "yes"
+      end repeat
+    end repeat
+  end tell
+  return "no"
+end run
+APPLESCRIPT
+)"
+    [[ "$ghostty_result" == "yes" ]]
+    return
+  fi
+
   local result
   result="$(osascript - "$window_id" <<'APPLESCRIPT' 2>/dev/null || true
 on run argv
@@ -33,6 +53,37 @@ APPLESCRIPT
 open_terminal_window() {
   local session="$1"
   local title="$2"
+  local sibling_tab_id="${3:-}"
+
+  if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
+    [[ -n "$sibling_tab_id" ]] || return 0
+    osascript - "$WORKING_DIR" "$session" "$sibling_tab_id" <<'APPLESCRIPT' 2>/dev/null || true
+on run argv
+  set workingDir to item 1 of argv
+  set tmuxSession to item 2 of argv
+  set siblingTabId to item 3 of argv
+  set initialCmd to "cd " & quoted form of workingDir & " && exec tmux attach-session -t " & quoted form of tmuxSession & linefeed
+  tell application "Ghostty"
+    set targetWin to missing value
+    repeat with w in windows
+      repeat with t in tabs of w
+        if (id of t as string) is siblingTabId then
+          set targetWin to w
+          exit repeat
+        end if
+      end repeat
+      if targetWin is not missing value then exit repeat
+    end repeat
+    set cfg to new surface configuration
+    set initial working directory of cfg to workingDir
+    set initial input of cfg to initialCmd
+    set newTab to new tab in targetWin with configuration cfg
+    return id of newTab
+  end tell
+end run
+APPLESCRIPT
+    return
+  fi
 
   osascript - "$WORKING_DIR" "$session" "$title" <<'APPLESCRIPT'
 on run argv
@@ -54,6 +105,27 @@ APPLESCRIPT
 close_terminal_window() {
   local window_id="$1"
   [[ -n "$window_id" ]] || return 0
+
+  if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
+    osascript - "$window_id" <<'APPLESCRIPT' >/dev/null 2>&1 || true
+on run argv
+  set targetId to item 1 of argv
+  tell application "Ghostty"
+    try
+      repeat with w in windows
+        repeat with t in tabs of w
+          if (id of t as string) is targetId then
+            close tab t
+            return
+          end if
+        end repeat
+      end repeat
+    end try
+  end tell
+end run
+APPLESCRIPT
+    return
+  fi
 
   osascript - "$window_id" <<'APPLESCRIPT' >/dev/null 2>&1 || true
 on run argv
@@ -136,7 +208,7 @@ while [[ -f "$WINDOW_STATE_FILE" ]]; do
     else
       MISSING_COUNTS[$index]=$(( ${MISSING_COUNTS[$index]:-0} + 1 ))
       (( MISSING_COUNTS[$index] >= MISSING_THRESHOLD )) || continue
-      new_window_id="$(open_terminal_window "$session" "$title")"
+      new_window_id="$(open_terminal_window "$session" "$title" "$cleanup_window_id")"
       rewrite_window_id "$index" "$new_window_id"
       MISSING_COUNTS[$index]=0
     fi
