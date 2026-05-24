@@ -388,9 +388,6 @@ launch_role() {
     return
   fi
 
-  if [[ "$agent" == "copilot" ]]; then
-    prompt_file="$role_worktree/.github/copilot-instructions.md"
-  fi
   write_agent_instruction_file "$role" "$prompt_file" "$agent" "$role_worktree"
 
   case "$agent" in
@@ -401,7 +398,7 @@ launch_role() {
       launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && codex -C '$role_worktree' \"\$(cat '$prompt_file')\""
       ;;
     copilot)
-      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && copilot --allow-all-tools --allow-all-paths"
+      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && copilot --yolo"
       ;;
   esac
 
@@ -417,6 +414,11 @@ launch_role() {
 
   tmux send-keys -t "${session}:${display}.0" "$launch_cmd" Enter
   echo -e "  ${CYAN}[${display}]${RESET} started in session ${session}"
+
+  if [[ "$agent" == "copilot" ]]; then
+    sleep 5
+    "$SWARM_TOOLS_DIR/notify-agent.sh" "$role" "$(<"$prompt_file")"
+  fi
 }
 
 open_terminal_window() {
