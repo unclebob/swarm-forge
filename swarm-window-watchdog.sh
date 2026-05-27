@@ -59,14 +59,13 @@ open_terminal_window() {
 
   if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
     [[ -n "$sibling_tab_id" ]] || return 0
-    osascript - "$WORKING_DIR" "$session" "$sibling_tab_id" "$TMUX_SOCKET" "$title" <<'APPLESCRIPT' 2>/dev/null || true
+    osascript - "$WORKING_DIR" "$session" "$sibling_tab_id" "$TMUX_SOCKET" <<'APPLESCRIPT' 2>/dev/null || true
 on run argv
   set workingDir to item 1 of argv
   set tmuxSession to item 2 of argv
   set siblingTabId to item 3 of argv
   set tmuxSocket to item 4 of argv
-  set windowTitle to item 5 of argv
-  set initialCmd to "cd " & quoted form of workingDir & " && printf '\\033]0;%s\\007' " & quoted form of windowTitle & " && exec tmux -S " & quoted form of tmuxSocket & " attach-session -t " & quoted form of tmuxSession & linefeed
+  set initialCmd to "cd " & quoted form of workingDir & " && exec tmux -S " & quoted form of tmuxSocket & " attach-session -t " & quoted form of tmuxSession & linefeed
   tell application "Ghostty"
     set targetWin to missing value
     set siblingTab to missing value
