@@ -1,16 +1,18 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-if [[ $# -lt 1 ]]; then
-  echo "Usage: swarm-cleanup.sh <window-ids-file> [session ...]" >&2
+if [[ $# -lt 2 ]]; then
+  echo "Usage: swarm-cleanup.sh <tmux-socket> <window-ids-file> [session ...]" >&2
   exit 1
 fi
 
-WINDOW_IDS_FILE="$1"
+TMUX_SOCKET="$1"
+WINDOW_IDS_FILE="$2"
+shift
 shift
 
 for session in "$@"; do
-  tmux kill-session -t "$session" 2>/dev/null || true
+  tmux -S "$TMUX_SOCKET" kill-session -t "$session" 2>/dev/null || true
 done
 
 sleep 1

@@ -19,7 +19,7 @@ SwarmForge is a lightweight, tmux-based orchestration layer that:
 - Launches a **config-driven swarm** from a project-local `swarmforge/swarmforge.conf`
 - Creates one tmux session and one Terminal window per configured role
 - Reads behavior from project-local `swarmforge/<role>.prompt` files plus a layered `swarmforge/constitution.prompt`
-- Supports per-role backends such as `claude`, `codex`, or `none`
+- Supports per-role backends such as `claude` or `codex`
 - Creates a project-local `swarmtools/` directory with notification helpers for the active swarm
 - Creates one git worktree per configured role under `.worktrees/`
 - Initializes a git repository in a new working directory and creates a first commit with `logs/` and `agent_context/` ignored
@@ -30,7 +30,7 @@ SwarmForge is a lightweight, tmux-based orchestration layer that:
 - **Config-Driven Topology** — The swarm shape comes from `swarmforge/swarmforge.conf`, not hardcoded shell variables.
 - **Project-Local Roles** — Each role is defined by `swarmforge/<role>.prompt` in the working tree being orchestrated.
 - **Layered Constitution** — `swarmforge/constitution.prompt` can delegate to subordinate files such as `swarmforge/constitution/project.prompt`, `engineering.prompt`, and `workflow.prompt`.
-- **Backend Selection Per Role** — A role can launch `claude`, `codex`, or no agent at all.
+- **Backend Selection Per Role** — A role can launch `claude` or `codex`.
 - **Observable Swarm** — Open one Terminal window per role and watch the sessions in real time.
 - **Self-Hosted & Lightweight** — Runs locally in tmux and Terminal with minimal machinery.
 
@@ -59,8 +59,6 @@ The default three-agent workflow is:
 - `coder` implements one small slice at a time and hands off completed work
 - `reviewer` performs deeper verification and quality checks before final handoff
 
-`logger` remains an optional utility role with no agent backend.
-
 ## How It Works (High Level)
 
 1. Create a `swarmforge/` directory in the target working directory.
@@ -72,7 +70,7 @@ The default three-agent workflow is:
 7. Startup creates a git worktree for each window under `.worktrees/<worktree>`, unless the worktree field is `none` or `master`.
 8. Startup creates `swarmtools/notify-agent.sh` for that project.
 9. SwarmForge creates tmux sessions, opens Terminal windows, and launches each configured backend in its assigned worktree.
-10. Roles communicate through helper commands such as `notify-agent.sh`.
+10. Roles communicate through helper commands such as `notify-agent.sh <role> --file <message-file>`.
 
 ## The `swarmforge.conf` File
 
@@ -90,7 +88,7 @@ You can define as many windows as your project needs. Each `role` maps to a corr
 - `swarmforge/research.prompt`
 - `swarmforge/release.prompt`
 
-This lets each project choose its own swarm shape instead of being locked to a fixed set of roles. The only special case is a utility role such as `logger` using the `none` backend, which opens a window without launching an agent.
+This lets each project choose its own swarm shape instead of being locked to a fixed set of roles.
 
 The first window in the config is the cleanup window. SwarmForge attaches shutdown cleanup to that window's launch command and falls back to that tmux session when Terminal automation is unavailable.
 
@@ -108,8 +106,6 @@ window coder codex coder
 window refactorer codex refactorer
 window architect codex architect
 ```
-
-`logger` is a utility role. When configured with `none`, it tails `logs/agent_messages.log`.
 
 In the example above, the agents run in these worktrees:
 

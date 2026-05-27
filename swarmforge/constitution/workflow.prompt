@@ -3,15 +3,23 @@
 - At startup, discover and remember the branch or worktree assigned to your role.
 - If your assigned worktree is `master`, work in the main project checkout on its current branch; do not expect or create a `.worktrees/<role>` directory for that role.
 - Work only in your assigned branch or worktree.
+- Do not inspect, diff, merge, or base work on another branch unless that branch is specifically named in a handoff or explicit user instruction.
 - Use `./tmp/` in your assigned worktree for temporary files; do not use `/tmp`.
-- Use the project-local `swarmtools/notify-agent.sh` helper for handoffs between agents.
-- Start every handoff message with: `Review your rules.`
-- Every handoff must include the branch name, commit hash, and what changed.
+- Use `./swarmtools/notify-agent.sh` from your assigned checkout or worktree for handoffs between agents. Startup creates this helper locally, using a wrapper in linked worktrees. Do not rely on PATH lookup.
+- For every handoff, write the complete handoff message to `./tmp/<target-role>-handoff.txt` and send it with `./swarmtools/notify-agent.sh <target-role> --file ./tmp/<target-role>-handoff.txt`. Do not pass multiline handoff messages directly as shell arguments.
+- Start every handoff message with: `Re-read your role and constitution.`
+- The specifier invents a short, stable handoff name for each accepted specification handoff.
+- Every later handoff for that work must include the specifier handoff name.
+- Handoffs must report only essential state, not prescribe process. After the opening line, include exactly these fields and no other prose: sender role, specifier handoff name, branch name, and commit hash.
+- Do not tell the receiving role how to do its job, repeat your process, or ask it to continue sender-owned responsibilities. The normal request is: `Apply your own role rules to this state.`
+- After receiving a handoff, merge the sender branch state identified by the handoff branch name and commit hash into your assigned branch before applying your own role rules.
+- When receiving a handoff, ignore sender process narrative and decide next actions only from your own role prompt, the constitution, and the current project state.
 - If one or more messages arrive while you are busy:
   - Save each complete message as its own file in a local untracked `pending-messages/` directory in your assigned worktree.
-  - Name queued message files so lexicographic sort order is processing order.
-  - Use lower numeric filename prefixes for higher priority messages.
+  - Name queued message files with this format: `PP-YYYYMMDD-HHMMSS-source.txt`, where `PP` is the two-digit priority.
+  - Use priority `00` for architect handoffs to coder or refactorer.
+  - Use priority `50` for normal messages unless a role prompt or explicit user instruction sets a different priority.
   - Finish the current job before acting on queued messages.
-  - After the current job is complete, process queued message files in sorted filename order.
-  - Delete each queued message file only after processing it.
+  - After the current job is complete and any required handoff has been sent, process queued message files in sorted filename order.
+  - Delete each queued message file only after processing it. Do not use `rm -f`; use a non-forced deletion command so queue cleanup does not trigger escalation.
 - If the expected git layout or assigned worktree is missing, stop and report instead of silently working in the wrong place.

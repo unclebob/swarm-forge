@@ -4,7 +4,8 @@ set -euo pipefail
 WINDOW_STATE_FILE="$1"
 WINDOW_IDS_FILE="$2"
 CLEANUP_OWNER_INDEX="$3"
-WORKING_DIR="$4"
+TMUX_SOCKET="$4"
+WORKING_DIR="$5"
 MISSING_THRESHOLD=3
 
 typeset -A MISSING_COUNTS=()
@@ -85,16 +86,17 @@ APPLESCRIPT
     return
   fi
 
-  osascript - "$WORKING_DIR" "$session" "$title" <<'APPLESCRIPT'
+  osascript - "$WORKING_DIR" "$session" "$title" "$TMUX_SOCKET" <<'APPLESCRIPT'
 on run argv
   set workingDir to item 1 of argv
   set tmuxSession to item 2 of argv
   set windowTitle to item 3 of argv
+  set tmuxSocket to item 4 of argv
 
   tell application "Terminal"
     activate
     set newTab to do script ""
-    do script "cd " & quoted form of workingDir & " && exec tmux attach-session -t " & quoted form of tmuxSession in newTab
+    do script "cd " & quoted form of workingDir & " && exec tmux -S " & quoted form of tmuxSocket & " attach-session -t " & quoted form of tmuxSession in newTab
     set custom title of newTab to windowTitle
     return id of front window
   end tell
@@ -144,7 +146,7 @@ kill_all_sessions() {
 
   while IFS=$'\t' read -r index window_id session title || [[ -n "${index:-}" ]]; do
     [[ -n "${session:-}" ]] || continue
-    tmux kill-session -t "$session" 2>/dev/null || true
+    tmux -S "$TMUX_SOCKET" kill-session -t "$session" 2>/dev/null || true
   done < "$WINDOW_STATE_FILE"
 
   while IFS=$'\t' read -r index window_id session title || [[ -n "${index:-}" ]]; do
@@ -182,7 +184,7 @@ while [[ -f "$WINDOW_STATE_FILE" ]]; do
     fi
   done < "$WINDOW_STATE_FILE"
 
-  if [[ -z "$cleanup_session" ]] || ! tmux has-session -t "$cleanup_session" 2>/dev/null; then
+  if [[ -z "$cleanup_session" ]] || ! tmux -S "$TMUX_SOCKET" has-session -t "$cleanup_session" 2>/dev/null; then
     exit 0
   fi
 
@@ -201,7 +203,7 @@ while [[ -f "$WINDOW_STATE_FILE" ]]; do
   while IFS=$'\t' read -r index window_id session title || [[ -n "${index:-}" ]]; do
     [[ -n "${index:-}" ]] || continue
     [[ "$index" != "$CLEANUP_OWNER_INDEX" ]] || continue
-    tmux has-session -t "$session" 2>/dev/null || continue
+    tmux -S "$TMUX_SOCKET" has-session -t "$session" 2>/dev/null || continue
 
     if window_exists "$window_id"; then
       MISSING_COUNTS[$index]=0
