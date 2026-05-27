@@ -476,14 +476,21 @@ on run argv
     set initial working directory of cfg to workingDir
     set initial input of cfg to initialCmd
     if siblingTabId is "" then
+      try
+        set targetWin to front window
+        set newTab to new tab in targetWin with configuration cfg
+        return id of newTab
+      end try
       set newWin to new window with configuration cfg
       return id of (first tab of newWin)
     end if
     set targetWin to missing value
+    set siblingTab to missing value
     repeat with w in windows
       repeat with t in tabs of w
         if (id of t as string) is siblingTabId then
           set targetWin to w
+          set siblingTab to t
           exit repeat
         end if
       end repeat
@@ -493,6 +500,7 @@ on run argv
       set newWin to new window with configuration cfg
       return id of (first tab of newWin)
     end if
+    select tab siblingTab
     set newTab to new tab in targetWin with configuration cfg
     return id of newTab
   end tell
