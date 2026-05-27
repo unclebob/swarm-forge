@@ -15,7 +15,7 @@ window_exists() {
   [[ -n "$window_id" ]] || return 1
 
   if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
-    pgrep -xq Ghostty || return 1
+    pgrep -xqi ghostty || return 1
     local ghostty_result
     ghostty_result="$(osascript - "$window_id" <<'APPLESCRIPT' 2>/dev/null || true
 on run argv
@@ -59,13 +59,14 @@ open_terminal_window() {
 
   if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
     [[ -n "$sibling_tab_id" ]] || return 0
-    osascript - "$WORKING_DIR" "$session" "$sibling_tab_id" "$TMUX_SOCKET" <<'APPLESCRIPT' 2>/dev/null || true
+    osascript - "$WORKING_DIR" "$session" "$sibling_tab_id" "$TMUX_SOCKET" "$title" <<'APPLESCRIPT' 2>/dev/null || true
 on run argv
   set workingDir to item 1 of argv
   set tmuxSession to item 2 of argv
   set siblingTabId to item 3 of argv
   set tmuxSocket to item 4 of argv
-  set initialCmd to "cd " & quoted form of workingDir & " && exec tmux -S " & quoted form of tmuxSocket & " attach-session -t " & quoted form of tmuxSession & linefeed
+  set windowTitle to item 5 of argv
+  set initialCmd to "cd " & quoted form of workingDir & " && printf '\\033]0;%s\\007' " & quoted form of windowTitle & " && exec tmux -S " & quoted form of tmuxSocket & " attach-session -t " & quoted form of tmuxSession & linefeed
   tell application "Ghostty"
     set targetWin to missing value
     repeat with w in windows
@@ -112,7 +113,7 @@ close_terminal_window() {
   [[ -n "$window_id" ]] || return 0
 
   if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
-    pgrep -xq Ghostty || return 0
+    pgrep -xqi ghostty || return 0
     osascript - "$window_id" <<'APPLESCRIPT' >/dev/null 2>&1 || true
 on run argv
   set targetId to item 1 of argv
