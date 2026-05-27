@@ -22,6 +22,7 @@ if [[ ! -f "$WINDOW_IDS_FILE" ]]; then
 fi
 
 if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
+  pgrep -xq Ghostty || exit 0
   while IFS= read -r tab_id; do
     [[ -n "$tab_id" ]] || continue
     osascript - "$tab_id" <<'APPLESCRIPT' >/dev/null 2>&1 || true

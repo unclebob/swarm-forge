@@ -15,6 +15,7 @@ window_exists() {
   [[ -n "$window_id" ]] || return 1
 
   if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
+    pgrep -xq Ghostty || return 1
     local ghostty_result
     ghostty_result="$(osascript - "$window_id" <<'APPLESCRIPT' 2>/dev/null || true
 on run argv
@@ -58,29 +59,28 @@ open_terminal_window() {
 
   if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
     [[ -n "$sibling_tab_id" ]] || return 0
-    osascript - "$WORKING_DIR" "$session" "$sibling_tab_id" <<'APPLESCRIPT' 2>/dev/null || true
+    osascript - "$WORKING_DIR" "$session" "$sibling_tab_id" "$TMUX_SOCKET" <<'APPLESCRIPT' 2>/dev/null || true
 on run argv
   set workingDir to item 1 of argv
   set tmuxSession to item 2 of argv
   set siblingTabId to item 3 of argv
-  set initialCmd to "cd " & quoted form of workingDir & " && exec tmux attach-session -t " & quoted form of tmuxSession & linefeed
+  set tmuxSocket to item 4 of argv
+  set initialCmd to "cd " & quoted form of workingDir & " && exec tmux -S " & quoted form of tmuxSocket & " attach-session -t " & quoted form of tmuxSession & linefeed
   tell application "Ghostty"
     set targetWin to missing value
-    set siblingTab to missing value
     repeat with w in windows
       repeat with t in tabs of w
         if (id of t as string) is siblingTabId then
           set targetWin to w
-          set siblingTab to t
           exit repeat
         end if
       end repeat
       if targetWin is not missing value then exit repeat
     end repeat
+    if targetWin is missing value then return
     set cfg to new surface configuration
     set initial working directory of cfg to workingDir
     set initial input of cfg to initialCmd
-    select tab siblingTab
     set newTab to new tab in targetWin with configuration cfg
     return id of newTab
   end tell
@@ -112,6 +112,7 @@ close_terminal_window() {
   [[ -n "$window_id" ]] || return 0
 
   if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
+    pgrep -xq Ghostty || return 0
     osascript - "$window_id" <<'APPLESCRIPT' >/dev/null 2>&1 || true
 on run argv
   set targetId to item 1 of argv
@@ -214,6 +215,7 @@ while [[ -f "$WINDOW_STATE_FILE" ]]; do
       MISSING_COUNTS[$index]=$(( ${MISSING_COUNTS[$index]:-0} + 1 ))
       (( MISSING_COUNTS[$index] >= MISSING_THRESHOLD )) || continue
       new_window_id="$(open_terminal_window "$session" "$title" "$cleanup_window_id")"
+      [[ -n "$new_window_id" ]] || continue
       rewrite_window_id "$index" "$new_window_id"
       MISSING_COUNTS[$index]=0
     fi

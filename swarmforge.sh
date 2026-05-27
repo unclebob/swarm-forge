@@ -463,12 +463,13 @@ open_terminal_window() {
   local sibling_tab_id="${3:-}"
 
   if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
-    osascript - "$WORKING_DIR" "$session" "$sibling_tab_id" <<'APPLESCRIPT'
+    osascript - "$WORKING_DIR" "$session" "$sibling_tab_id" "$TMUX_SOCKET" <<'APPLESCRIPT'
 on run argv
   set workingDir to item 1 of argv
   set tmuxSession to item 2 of argv
   set siblingTabId to item 3 of argv
-  set initialCmd to "cd " & quoted form of workingDir & " && exec tmux attach-session -t " & quoted form of tmuxSession & linefeed
+  set tmuxSocket to item 4 of argv
+  set initialCmd to "cd " & quoted form of workingDir & " && exec tmux -S " & quoted form of tmuxSocket & " attach-session -t " & quoted form of tmuxSession & linefeed
   tell application "Ghostty"
     set cfg to new surface configuration
     set initial working directory of cfg to workingDir
@@ -478,18 +479,19 @@ on run argv
       return id of (first tab of newWin)
     end if
     set targetWin to missing value
-    set siblingTab to missing value
     repeat with w in windows
       repeat with t in tabs of w
         if (id of t as string) is siblingTabId then
           set targetWin to w
-          set siblingTab to t
           exit repeat
         end if
       end repeat
       if targetWin is not missing value then exit repeat
     end repeat
-    select tab siblingTab
+    if targetWin is missing value then
+      set newWin to new window with configuration cfg
+      return id of (first tab of newWin)
+    end if
     set newTab to new tab in targetWin with configuration cfg
     return id of newTab
   end tell
