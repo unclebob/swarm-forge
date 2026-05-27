@@ -66,10 +66,12 @@ on run argv
   set initialCmd to "cd " & quoted form of workingDir & " && exec tmux attach-session -t " & quoted form of tmuxSession & linefeed
   tell application "Ghostty"
     set targetWin to missing value
+    set siblingTab to missing value
     repeat with w in windows
       repeat with t in tabs of w
         if (id of t as string) is siblingTabId then
           set targetWin to w
+          set siblingTab to t
           exit repeat
         end if
       end repeat
@@ -78,6 +80,7 @@ on run argv
     set cfg to new surface configuration
     set initial working directory of cfg to workingDir
     set initial input of cfg to initialCmd
+    select tab siblingTab
     set newTab to new tab in targetWin with configuration cfg
     return id of newTab
   end tell

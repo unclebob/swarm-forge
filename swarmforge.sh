@@ -478,15 +478,18 @@ on run argv
       return id of (first tab of newWin)
     end if
     set targetWin to missing value
+    set siblingTab to missing value
     repeat with w in windows
       repeat with t in tabs of w
         if (id of t as string) is siblingTabId then
           set targetWin to w
+          set siblingTab to t
           exit repeat
         end if
       end repeat
       if targetWin is not missing value then exit repeat
     end repeat
+    select tab siblingTab
     set newTab to new tab in targetWin with configuration cfg
     return id of newTab
   end tell
@@ -563,11 +566,11 @@ if has_command osascript; then
   echo -e "Opening separate Terminal windows for each session..."
   : > "$WINDOW_IDS_FILE"
   : > "$WINDOW_STATE_FILE"
-  ghostty_first_tab_id=""
+  ghostty_prev_tab_id=""
   for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
-    window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}" "$ghostty_first_tab_id")"
-    if [[ "${TERM_PROGRAM:-}" == "ghostty" && -z "$ghostty_first_tab_id" ]]; then
-      ghostty_first_tab_id="$window_id"
+    window_id="$(open_terminal_window "${SESSIONS[$i]}" "SwarmForge ${DISPLAY_NAMES[$i]}" "$ghostty_prev_tab_id")"
+    if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then
+      ghostty_prev_tab_id="$window_id"
     fi
     echo "$window_id" >> "$WINDOW_IDS_FILE"
     printf '%s\t%s\t%s\t%s\n' \
