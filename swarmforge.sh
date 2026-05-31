@@ -38,6 +38,7 @@ typeset -a SESSIONS=()
 typeset -a DISPLAY_NAMES=()
 typeset -a WORKTREE_NAMES=()
 typeset -a WORKTREE_PATHS=()
+typeset -a EXTRA_ARGS=()
 typeset -A ROLE_INDEX=()
 typeset -A WORKTREE_INDEX=()
 typeset -i CLEANUP_OWNER_INDEX=1
@@ -224,7 +225,7 @@ parse_config() {
 
     local -a fields
     fields=(${=line})
-    if (( ${#fields[@]} != 4 )); then
+    if (( ${#fields[@]} < 4 )); then
       echo -e "${RED}Error:${RESET} Invalid config line $line_no: $line"
       exit 1
     fi
@@ -233,6 +234,7 @@ parse_config() {
     role="${fields[2]}"
     agent="${fields[3]:l}"
     worktree="${fields[4]}"
+    local extra_args="${(j: :)fields[5,-1]}"
 
     if [[ "$keyword" != "window" ]]; then
       echo -e "${RED}Error:${RESET} Unknown config directive on line $line_no: $keyword"
@@ -276,6 +278,7 @@ parse_config() {
     SESSIONS+=("$(session_name_for_role "$role")")
     DISPLAY_NAMES+=("$(display_name_for_role "$role")")
     WORKTREE_NAMES+=("$worktree")
+    EXTRA_ARGS+=("$extra_args")
     if [[ "$worktree" == "none" || "$worktree" == "master" ]]; then
       WORKTREE_PATHS+=("$WORKING_DIR")
     else
@@ -512,6 +515,7 @@ launch_role() {
   local session="${SESSIONS[$index]}"
   local display="${DISPLAY_NAMES[$index]}"
   local role_worktree="${WORKTREE_PATHS[$index]}"
+  local extra_args="${EXTRA_ARGS[$index]}"
   local prompt_file="$PROMPTS_DIR/${role}.md"
   local launch_cmd=""
 
@@ -519,16 +523,16 @@ launch_role() {
 
   case "$agent" in
     claude)
-      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && claude --append-system-prompt-file '$prompt_file' --permission-mode acceptEdits -n 'SwarmForge ${display}' \"\$(cat '$prompt_file')\""
+      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && claude --append-system-prompt-file '$prompt_file' --permission-mode acceptEdits -n 'SwarmForge ${display}' ${extra_args} \"\$(cat '$prompt_file')\""
       ;;
     codex)
-      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && codex -C '$role_worktree' \"\$(cat '$prompt_file')\""
+      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && codex -C '$role_worktree' ${extra_args} \"\$(cat '$prompt_file')\""
       ;;
     copilot)
-      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && copilot -C '$role_worktree' --name 'SwarmForge ${display}' -i \"\$(cat '$prompt_file')\""
+      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && copilot -C '$role_worktree' --name 'SwarmForge ${display}' ${extra_args} -i \"\$(cat '$prompt_file')\""
       ;;
     grok)
-      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && grok --cwd '$role_worktree' --permission-mode acceptEdits --rules \"\$(cat '$prompt_file')\""
+      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && grok --cwd '$role_worktree' --permission-mode acceptEdits ${extra_args} --rules \"\$(cat '$prompt_file')\""
       ;;
   esac
 
