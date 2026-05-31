@@ -77,7 +77,14 @@ The default three-agent workflow is:
 `swarmforge/swarmforge.conf` defines the swarm window-by-window. Each line has this form:
 
 ```conf
-window <role> <agent> <worktree>
+window <role> <agent> <worktree> [extra-cli-args...]
+```
+
+Everything after the fourth field is optional and passed directly to the agent CLI as additional arguments. For example:
+
+```conf
+window coder copilot wt-coder --yolo
+window architect claude wt-arch --dangerously-skip-permissions
 ```
 
 You can define as many windows as your project needs. Each `role` maps to a corresponding prompt file at `swarmforge/<role>.prompt`, so a config containing `architect`, `coder`, `reviewer`, `research`, and `release` windows would expect:
