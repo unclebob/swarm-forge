@@ -174,6 +174,10 @@ remove_nonessential_clone_files() {
     return
   fi
 
+  if [[ "$WORKING_DIR" != "$SCRIPT_DIR" ]]; then
+    return
+  fi
+
   rm -rf "$WORKING_DIR/README.md" "$WORKING_DIR/SwarmForgeInitSpec.md" "$WORKING_DIR/examples"
 }
 
