@@ -7,8 +7,8 @@
 - Use `./tmp/` in your assigned worktree for temporary files; do not use `/tmp`.
 - Use `./swarmtools/notify-agent.sh` from your assigned checkout or worktree for handoffs between agents. Startup creates this helper locally, using a wrapper in linked worktrees. Do not rely on PATH lookup.
 - Maintain the tracked root `logbook.md` file for every handoff received or sent.
-- When receiving a handoff, add a `logbook.md` note with a timestamp and a brief description of the action taken.
-- When sending a handoff, add a `logbook.md` note with a timestamp and a brief summary of the handoff contents.
+- When receiving a handoff, add a `logbook.md` note with a timestamp, the complete handoff message received, and a brief description of the action taken.
+- When sending a handoff, add a `logbook.md` note with a timestamp, the complete handoff message sent, and a brief summary of the handoff contents.
 - Commit `logbook.md` updates with the related work; do not leave handoff log entries untracked or uncommitted.
 - For every handoff, write the complete handoff message to `./tmp/<target-role>-handoff.txt` and send it with `./swarmtools/notify-agent.sh <target-role> --file ./tmp/<target-role>-handoff.txt`. Do not pass multiline handoff messages directly as shell arguments.
 - Start every handoff message with: `Re-read your role and constitution.`
