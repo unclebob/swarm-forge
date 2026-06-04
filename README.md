@@ -211,11 +211,14 @@ Use these example directories as starting points for project-local `swarmforge/`
 
 ## Getting Started
 
-- In the directory where you want to use SwarmForge, pull the repository contents without creating a Git remote:
+- In the directory where you want to use SwarmForge, choose the SwarmForge branch to copy and pull the repository contents without creating a Git remote:
 
   ```sh
-  curl -L https://github.com/unclebob/swarm-forge/archive/refs/heads/main.tar.gz | tar -xz --strip-components=1
+  BRANCH=main
+  curl -L "https://github.com/unclebob/swarm-forge/archive/refs/heads/${BRANCH}.tar.gz" | tar -xz --strip-components=1
   ```
+
+  Use `BRANCH=4-pack` or `BRANCH=six-pack` to copy one of those swarm configurations instead.
 	
 ## Running SwarmForge
 
