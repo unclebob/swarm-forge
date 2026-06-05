@@ -14,9 +14,9 @@
 - Start every handoff message with: `Re-read your role and constitution.`
 - The specifier invents a short, stable handoff name for each accepted specification handoff.
 - Every later handoff for that work must include the specifier handoff name.
-- Handoffs must report only essential state, not prescribe process. After the opening line, include exactly these fields and no other prose: sender role, specifier handoff name, branch name, and commit hash.
+- Handoffs must report only essential state, not prescribe process. After the opening line, include exactly these fields and no other prose: sender role, specifier handoff name, branch name, and 10-character commit hash.
 - Do not tell the receiving role how to do its job, repeat your process, or ask it to continue sender-owned responsibilities. The normal request is: `Apply your own role rules to this state.`
-- After receiving a handoff, merge the sender branch state identified by the handoff branch name and commit hash into your assigned branch before applying your own role rules.
+- After receiving a handoff, merge the sender branch state identified by the handoff branch name and 10-character commit hash into your assigned branch before applying your own role rules.
 - When receiving a handoff, ignore sender process narrative and decide next actions only from your own role prompt, the constitution, and the current project state.
 - If one or more messages arrive while you are busy:
   - Save each complete message as its own file in a local untracked `pending-messages/` directory in your assigned worktree.
