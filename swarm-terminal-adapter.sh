@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 
-TERMINAL_ADAPTERS_DIR="${SCRIPT_DIR:-$(cd "$(dirname "$0")" && pwd)}/terminal-adapters"
+TERMINAL_ADAPTERS_DIR="${SCRIPT_DIR:-$(cd "$(dirname "$0")" && pwd)}/swarmforge/terminal-adapters"
 
 normalize_terminal_backend() {
   local backend="${1:l}"

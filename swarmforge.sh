@@ -312,8 +312,8 @@ check_helper_scripts() {
   done
 
   for helper in terminal-app.sh ghostty.sh windows-terminal.sh none.sh; do
-    if [[ ! -x "$SCRIPT_DIR/terminal-adapters/$helper" ]]; then
-      echo -e "${RED}Error:${RESET} Required terminal adapter not found or not executable: $SCRIPT_DIR/terminal-adapters/$helper"
+    if [[ ! -x "$SCRIPT_DIR/swarmforge/terminal-adapters/$helper" ]]; then
+      echo -e "${RED}Error:${RESET} Required terminal adapter not found or not executable: $SCRIPT_DIR/swarmforge/terminal-adapters/$helper"
       exit 1
     fi
   done
