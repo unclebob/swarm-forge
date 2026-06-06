@@ -174,7 +174,7 @@ remove_nonessential_clone_files() {
     return
   fi
 
-  rm -rf "$WORKING_DIR/SwarmForgeInitSpec.md" "$WORKING_DIR/examples"
+  rm -rf "$WORKING_DIR/examples"
 }
 
 display_name_for_role() {
