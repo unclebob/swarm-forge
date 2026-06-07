@@ -1,8 +1,36 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
+# cmux multiplexer teardown: close the whole role workspace group (which closes
+# every workspace inside it), then close any recorded refs that were left
+# ungrouped. cmux owns these workspaces; no tmux/window cleanup applies.
+if [[ "${1:-}" == "--mux" ]]; then
+  shift
+  backend="${1:-}"
+  shift
+  if [[ "$backend" == "cmux" ]]; then
+    group=""
+    if [[ "${1:-}" == "--group" ]]; then
+      shift
+      group="${1:-}"
+      shift
+    fi
+    if [[ -n "$group" ]]; then
+      cmux workspace-group delete "$group" >/dev/null 2>&1 || true
+    fi
+    for ws in "$@"; do
+      [[ -n "$ws" ]] || continue
+      cmux workspace close "$ws" >/dev/null 2>&1 || true
+    done
+    exit 0
+  fi
+  echo "Unknown --mux backend: $backend" >&2
+  exit 1
+fi
+
 if [[ $# -lt 2 ]]; then
   echo "Usage: swarm-cleanup.sh <tmux-socket> <window-ids-file> [session ...]" >&2
+  echo "       swarm-cleanup.sh --mux cmux --group <group> [workspace ...]" >&2
   exit 1
 fi
 

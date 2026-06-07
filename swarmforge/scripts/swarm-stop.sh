@@ -20,6 +20,23 @@ SOCKET_FILE="$STATE_DIR/tmux-socket"
 WINDOW_IDS_FILE="$STATE_DIR/window-ids"
 SESSIONS_FILE="$STATE_DIR/sessions.tsv"
 
+# cmux multiplexer: there is no tmux socket or tracked windows — tear down the
+# role workspace group recorded at startup and exit.
+mux_backend="tmux"
+[[ -f "$STATE_DIR/mux-backend" ]] && mux_backend="$(<"$STATE_DIR/mux-backend")"
+if [[ "$mux_backend" == "cmux" ]]; then
+  group=""
+  [[ -f "$STATE_DIR/cmux-group" ]] && group="$(<"$STATE_DIR/cmux-group")"
+  workspaces=()
+  if [[ -f "$STATE_DIR/cmux-workspaces" ]]; then
+    workspaces=( ${(f)"$(< "$STATE_DIR/cmux-workspaces")"} )
+  fi
+  echo "Stopping swarm in $WORKING_DIR (backend: cmux)..."
+  "$SCRIPT_DIR/swarm-cleanup.sh" --mux cmux --group "$group" "${workspaces[@]}"
+  echo "Swarm stopped."
+  exit 0
+fi
+
 # Backend resolution: explicit env wins, else the value persisted at startup,
 # else swarm-cleanup.sh's own default. This lets `swarm stop` close cmux
 # workspaces without the caller re-passing SWARMFORGE_TERMINAL.

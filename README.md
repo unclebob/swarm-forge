@@ -169,6 +169,22 @@ If a window uses `master` as its worktree name, SwarmForge does not create `.wor
 
 SwarmForge uses a project-specific tmux socket recorded in `.swarmforge/tmux-socket`, so each project swarm is isolated from other tmux sessions. It also honors tmux `base-index` and `pane-base-index` settings when launching agents and sending notifications, so configurations that number windows or panes from `1` work without requiring users to change their tmux preferences.
 
+## Multiplexer Backend (tmux vs cmux)
+
+SwarmForge runs each role under a terminal multiplexer, selected by `SWARM_MUX`:
+
+- `tmux` (default) — tmux is the multiplexer. One tmux session per role on the project-specific socket, surfaced through a terminal backend adapter (see *Terminal Behavior* below). This is the standard path.
+- `cmux` — [cmux](https://cmux.sh) is the multiplexer; there is **no tmux**. Each role runs natively in its own cmux workspace, and all role workspaces are collected under one `SwarmForge · <project>` workspace group in the sidebar. Use this when running inside cmux, where tmux behaves unreliably.
+
+Detection: an explicit `SWARM_MUX=tmux|cmux` always wins. Otherwise SwarmForge auto-detects — if it is launched from inside a cmux workspace (any of `CMUX_SOCKET_PATH`, `CMUX_SOCKET`, `CMUX_WORKSPACE_ID`, `CMUX_SURFACE_ID` is set) it uses `cmux`, else `tmux`.
+
+```sh
+SWARM_MUX=cmux ./swarm     # force the cmux multiplexer (must be run from inside cmux)
+SWARM_MUX=tmux ./swarm     # force tmux even when inside cmux
+```
+
+In `cmux` mode the terminal backend adapter, the project tmux socket, and the window watchdog are **not used** — cmux owns workspace creation, handoff delivery (`cmux send`), and teardown (`cmux workspace-group delete`). `swarm stop` reads `.swarmforge/mux-backend` to tear down the right way. The rest of this section (*Terminal Behavior*) applies to `tmux` mode only.
+
 ## Terminal Behavior
 
 SwarmForge opens trackable terminal windows or tabs through a small terminal backend adapter.
