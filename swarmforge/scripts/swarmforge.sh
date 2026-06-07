@@ -566,6 +566,9 @@ prepare_worktrees
 choose_cleanup_owner
 TERMINAL_BACKEND="$(detect_terminal_backend)"
 load_terminal_backend "$TERMINAL_BACKEND"
+# Record the active backend so `swarm stop` can close windows with the same
+# adapter without the caller re-specifying SWARMFORGE_TERMINAL.
+printf '%s\n' "$TERMINAL_BACKEND" > "$STATE_DIR/terminal-backend"
 
 local_session=""
 for local_session in "${SESSIONS[@]}"; do
