@@ -57,7 +57,7 @@ Ideas under consideration. Not yet designed or implemented. Each has a detailed 
 | A | Notify harness — shell queue, `/clear` + bundle re-inject, Stop hook idle signal, commit hash in trailer | [idea-A](../ideas/idea-A-notify-harness.md) | **Partially implemented** — `swarmforge.sh` on `main` done (commit `08e7f25`); role prompt cleanup pending on `four-pack`/`six-pack` |
 | C | Integrator role — owns PR + CI + merge; specifier moves to own worktree | [idea-C](../ideas/idea-C-integrator-role.md) | **Decision** — design settled; see § "Design decisions: Idea C" below |
 | D | Role idle gates — no handoff = no action, remove startup install directives | [idea-D](../ideas/idea-D-idle-gates.md) | **Decision** — design settled; see § "Design decisions: Idea D" below |
-| E | Back-routing defects — route to directly-upstream role with failing step + repro | [idea-E](../ideas/idea-E-back-routing-defects.md) | **Decision** — design settled; see § "Design decisions: Idea E" below |
+| E | Back-routing defects — always route to coder with failing step + repro | [idea-E](../ideas/idea-E-back-routing-defects.md) | **Decision** — design settled; see § "Design decisions: Idea E" below |
 | G | Per-technology engineering file — selected at install time | [idea-G](../ideas/idea-G-per-tech-engineering-file.md) | **Rejected** — adding a language is 2-3 lines in the shared table; template machinery is not justified |
 | H | swarm-cleanup --all mode | [idea-H](../ideas/idea-H-cleanup-all-mode.md) | **Rejected** — one-liner the operator can run manually; cmux UI covers the primary use case |
 | I | swarmforge/ write deny on role worktrees | [idea-I](../ideas/idea-I-swarmforge-write-deny.md) | **Rejected** — deferred; revisit if prompt drift becomes a real observed problem |
@@ -167,11 +167,11 @@ Design settled. No new domain vocabulary.
 
 Design settled. No new domain vocabulary.
 
-**"Directly-upstream" = the sender of the received handoff.** Each handoff names the sender role. When a role discovers a defect it does not own, it routes back to that sender — no pipeline map required, no per-role ownership tables.
+**All mid-pipeline defects route to the coder.** Any role that discovers a defect it does not own routes it directly to the coder — no ownership table, no hop-by-hop chaining. The coder is the implementation owner; defects in tests, structure, or analysis ultimately trace back to the implementation and are for the coder to resolve before re-entering the pipeline.
 
-**One rule added to `constitution/workflow.prompt`:** "When you discover a defect you do not own, route it back to the role that sent you this handoff. Include: the failing step, the raw error output, your diagnosis, and a repro recipe. Autofixable issues (formatting, linting) are excepted — fix those in place."
+**One rule added to `constitution/workflow.prompt`:** "When you discover a defect you do not own, route it to the coder. Include: the failing step, the raw error output, your diagnosis, and a repro recipe. Autofixable issues (formatting, linting) are excepted — fix those in place."
 
-**Complementary to Idea C integrator routing.** The integrator routes CI failures at the landing stage using direct ownership lookup (Idea C). This constitution rule covers mid-pipeline defects discovered before landing. Both rules coexist.
+**Complementary to Idea C integrator routing.** The integrator routes CI failures at the landing stage (Idea C). This constitution rule covers mid-pipeline defects discovered before landing. Both rules coexist.
 
 **Files changed:**
 - `four-pack` + `six-pack`: `swarmforge/constitution/workflow.prompt` — one additive rule, no upstream content removed

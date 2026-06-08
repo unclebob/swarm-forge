@@ -7,7 +7,7 @@
 
 ## What to implement
 
-1. Add the following rule to `swarmforge/constitution/workflow.prompt` on both `four-pack` and `six-pack`: "When you discover a defect you do not own, route it back to the role that sent you this handoff. Include: the failing step, the raw error output, your diagnosis, and a repro recipe. Autofixable issues (formatting, linting) are excepted — fix those in place."
+1. Add the following rule to `swarmforge/constitution/workflow.prompt` on both `four-pack` and `six-pack`: "When you discover a defect you do not own, route it to the coder. Include: the failing step, the raw error output, your diagnosis, and a repro recipe. Autofixable issues (formatting, linting) are excepted — fix those in place."
 
 ---
 
