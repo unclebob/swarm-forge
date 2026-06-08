@@ -86,6 +86,14 @@ Design settled. See `CONTEXT.md` for domain vocabulary (UX Intent, UX Engineer).
 
 **`hardender` typo fixed in the same change.** Idea M edits `swarmforge.conf` to add the UX Engineer window; the typo is corrected in the same edit.
 
+**DESIGN.md as project-level design contract.** The UX Engineer reads both UX Intent (per-feature, from the feature file) and the nearest DESIGN.md (project-level persistent design contract). This separates two concerns: "what should this feature look like" (UX Intent) vs "what does this product look like" (DESIGN.md). Without this separation, UX Intent authors must re-invent the project's visual language on every feature, producing visual drift. DESIGN.md is discovered via nearest-file resolution — walk up from the files being touched. In a monorepo each app may carry its own DESIGN.md.
+
+**UX Engineer has fix authority over DESIGN.md violations.** The UX Engineer may fix rendering code that violates DESIGN.md even when the violation is absent from UX Intent. Authority stems from the user having approved DESIGN.md at creation time — DESIGN.md is already user-authorised design law. Alternatives rejected: (1) flag-only — adds user friction on every feature where a violation exists; (2) spec-expansion — UX Engineer adds missing UX Intent statements then fixes — creates spec bloat and violates specifier ownership. All fixes made are reported for auditability.
+
+**Specifier scaffolds DESIGN.md on first UX feature.** If UX Intent is required and no DESIGN.md exists nearby, the specifier generates a DESIGN.md scaffold and presents it for user approval before sending the handoff. Rationale: DESIGN.md is a user-authorised document — the user must approve it before it becomes design law. The specifier generates the scaffold because it has the feature context; the user reviews and adjusts. Follows the existing approval-gate pattern (specifier never commits or notifies coder until the user explicitly approves).
+
+**Universal aesthetic anti-patterns inlined in role prompt.** A subset of visual quality rules (AI-slop anti-patterns, typography hierarchy, color contrast requirements) is inlined directly in `ux-engineer.prompt`. These are universal — they apply regardless of what any project's DESIGN.md says. All other content from the reference skill (component architecture, state management, accessibility implementation) belongs to the coder and QA, not the UX Engineer.
+
 **Pipeline after Idea M (six-pack):**
 ```
 specifier → coder → cleaner → architect → hardener → UX Engineer → QA → integrator
@@ -93,10 +101,10 @@ specifier → coder → cleaner → architect → hardener → UX Engineer → Q
 
 **Files changed (six-pack only):**
 - `six-pack`: `swarmforge/templates/feature.feature` — add `## UX Intent` section
-- `six-pack`: `swarmforge/roles/specifier.prompt` — add UX Intent authoring step before phase 1
+- `six-pack`: `swarmforge/roles/specifier.prompt` — add UX Intent authoring step before phase 1; add DESIGN.md scaffolding step on first UX feature
 - `six-pack`: `swarmforge/roles/coder.prompt` — add UX Intent reading instruction
 - `six-pack`: `swarmforge/roles/hardener.prompt` — add rendering property tests instruction; change final notification from QA to ux-engineer
-- `six-pack`: `swarmforge/roles/ux-engineer.prompt` (new)
+- `six-pack`: `swarmforge/roles/ux-engineer.prompt` (new) — include DESIGN.md reading, fix authority over DESIGN.md violations, inlined aesthetic anti-patterns
 - `six-pack`: `swarmforge/swarmforge.conf` — fix `hardender` typo; add ux-engineer window between hardener and QA
 
 ---

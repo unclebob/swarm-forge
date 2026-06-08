@@ -50,12 +50,16 @@ _Avoid_: notification, message, task assignment
 The single rule in each role prompt that prevents a role from acting without a handoff: "Wait for a handoff. Do not act without one." A role with no handoff does nothing — no scanning, installing, or self-assigned work.
 _Avoid_: startup guard, wait condition
 
+**DESIGN.md**:
+The project-level persistent design contract. Defines aesthetic decisions that apply across all features: typography, color palette, spacing scale, component vocabulary, and universal design standards. Resolved via nearest-file: the UX Engineer and specifier walk up from the files being touched until they find one. In a monorepo, each app may carry its own DESIGN.md. Absent on first UX feature, the specifier scaffolds one and presents it for user approval before proceeding.
+_Avoid_: design system file, style guide, design token file
+
 **UX Intent**:
-The `## UX Intent` section in the feature file, authored by the specifier before writing Gherkin. Covers four dimensions: Visual Composition, Information Hierarchy, Interaction Feel, and State Transitions. Written as concrete observable statements, not subjective preferences. Present only for features with UX requirements — its absence is the UX Engineer's signal to skip to QA immediately. Six-pack only.
+The `## UX Intent` section in the feature file, authored by the specifier before writing Gherkin. Covers four dimensions: Visual Composition, Information Hierarchy, Interaction Feel, and State Transitions. Written as concrete observable statements grounded in the project's DESIGN.md where one exists. Present only for features with UX requirements — its absence is the UX Engineer's signal to skip to QA immediately. Six-pack only.
 _Avoid_: UX spec, design doc, UX requirements
 
 **UX Engineer**:
-The six-pack role between hardener and QA. Reads UX Intent from the feature file, runs the binary, fixes UX mismatches in rendering code, adds golden file snapshots and rendering invariants. On a mismatch too deep to fix without changing the model's state shape, back-routes to the coder with a specific actionable message; the full pipeline re-runs. Depth cap N=3 (tracked via routing count in the handoff message trail) — after three back-routes, stops and asks the user. If no `## UX Intent` section is present, notifies QA immediately without changes.
+The six-pack role between hardener and QA. Reads UX Intent from the feature file and the nearest DESIGN.md, runs the binary, and fixes mismatches in rendering code. Has fix authority over violations of both — UX Intent (per-feature compliance) and DESIGN.md (project-level aesthetic consistency) — even when a violation is absent from UX Intent. Adds golden file snapshots and rendering invariants. On a mismatch requiring model state changes, back-routes to the coder with a specific actionable message; the full pipeline re-runs. Depth cap N=3 (tracked via routing count in the handoff message trail) — after three back-routes, stops and asks the user. If no `## UX Intent` section is present, notifies QA immediately without changes.
 _Avoid_: UX Reviewer, visual reviewer, UX auditor
 
 **Logbook statuses** (one logbook per role; the harness owns all writes — the agent writes nothing):
