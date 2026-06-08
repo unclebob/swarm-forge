@@ -42,7 +42,7 @@ The prompt-driven queue is replaced with a shell harness. `notify-agent.sh` (gen
 
 ---
 
-**Autonomous permission mode** — `main` branch
+**Autonomous permission mode** — `main` branch, commit `1097233`
 
 Files changed: `swarmforge/scripts/swarmforge.sh` — `launch_cmd` for `claude` and `grok` backends.
 
