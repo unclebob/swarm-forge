@@ -42,6 +42,14 @@ The prompt-driven queue is replaced with a shell harness. `notify-agent.sh` (gen
 
 ---
 
+**Autonomous permission mode** — `main` branch
+
+Files changed: `swarmforge/scripts/swarmforge.sh` — `launch_cmd` for `claude` and `grok` backends.
+
+Upstream uses `--permission-mode acceptEdits` for both backends, which auto-approves file writes but still surfaces a permission prompt on every bash/tool call. Swarm roles run unattended in isolated worktrees — a permission prompt is a silent hang, not a safety net. Changed to `--permission-mode auto` to allow fully autonomous operation. When rebasing, reapply this one-word change on both backend lines.
+
+---
+
 ### Temporary (drop once upstream fixes)
 
 **logbook.json contradiction** — `four-pack` commit `6770ae4`, `six-pack` commit `d8b2e27`
