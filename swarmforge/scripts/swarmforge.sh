@@ -327,7 +327,7 @@ write_deliver_script() {
 #!/usr/bin/env zsh
 set -euo pipefail
 
-# Args: project_dir mux_backend mux_target display_name worktree_path logbook_path bundle_path hash message_file
+# Args: project_dir mux_backend mux_target display_name worktree_path logbook_path bundle_path hash message_file sender
 PROJECT_DIR="$1"
 MUX_BACKEND="$2"
 MUX_TARGET="$3"
@@ -337,9 +337,10 @@ LOGBOOK_PATH="$6"
 BUNDLE_PATH="$7"
 HASH="$8"
 MESSAGE_FILE="$9"
+SENDER="${10:-}"
 
 # 1. Append executing entry to receiver logbook
-LOGBOOK_PATH="$LOGBOOK_PATH" python3 -c '
+LOGBOOK_PATH="$LOGBOOK_PATH" HASH="$HASH" MSG_FILE="$MESSAGE_FILE" SENDER="$SENDER" python3 -c '
 import json, os
 from datetime import datetime, timezone
 p = os.environ["LOGBOOK_PATH"]
@@ -347,7 +348,8 @@ log = []
 try:
   with open(p) as f: log = json.load(f)
 except: pass
-log.append({"status": "executing", "timestamp": datetime.now(timezone.utc).isoformat()})
+msg = open(os.environ["MSG_FILE"]).read() if os.environ.get("MSG_FILE") else ""
+log.append({"status": "executing", "timestamp": datetime.now(timezone.utc).isoformat(), "message": msg, "hash": os.environ.get("HASH", ""), "sender": os.environ.get("SENDER", "")})
 os.makedirs(os.path.dirname(p) or ".", exist_ok=True)
 with open(p, "w") as f: json.dump(log, f, indent=2)
 '
@@ -491,6 +493,15 @@ done < "$SESSIONS_FILE"
 
 [[ -n "$receiver_role" ]] || { echo "Unknown target: $TARGET" >&2; exit 1; }
 
+# Resolve sender role from sessions.tsv by matching worktree path
+sender_role=""
+while IFS=$'\t' read -r idx role mux_target display agent worktree_path; do
+  if [[ "$worktree_path" == "$SENDER_WORKTREE" ]]; then
+    sender_role="$role"
+    break
+  fi
+done < "$SESSIONS_FILE"
+
 RECEIVER_LOGBOOK="$receiver_worktree/logbook.json"
 RECEIVER_BUNDLE="$PROMPTS_DIR/${receiver_role}.md"
 
@@ -511,9 +522,9 @@ sys.stdout.write(state)
 ' 2>/dev/null || echo "none")
 
 if [[ "$receiver_state" != "executing" ]]; then
-  exec "$DELIVER_SCRIPT" "$PROJECT_DIR" "$MUX_BACKEND" "$receiver_mux" "$receiver_display" "$receiver_worktree" "$RECEIVER_LOGBOOK" "$RECEIVER_BUNDLE" "$SENDER_HASH" "$msg_file"
+  exec "$DELIVER_SCRIPT" "$PROJECT_DIR" "$MUX_BACKEND" "$receiver_mux" "$receiver_display" "$receiver_worktree" "$RECEIVER_LOGBOOK" "$RECEIVER_BUNDLE" "$SENDER_HASH" "$msg_file" "$sender_role"
 else
-  LOGBOOK="$RECEIVER_LOGBOOK" MSG="$FULL_MESSAGE" HASH="$SENDER_HASH" python3 -c '
+  LOGBOOK="$RECEIVER_LOGBOOK" MSG="$FULL_MESSAGE" HASH="$SENDER_HASH" SENDER="$sender_role" python3 -c '
 import json, os
 from datetime import datetime, timezone
 p = os.environ["LOGBOOK"]
@@ -521,7 +532,7 @@ log = []
 try:
   with open(p) as f: log = json.load(f)
 except: pass
-log.append({"status": "pending", "message": os.environ["MSG"], "hash": os.environ["HASH"], "timestamp": datetime.now(timezone.utc).isoformat()})
+log.append({"status": "pending", "message": os.environ["MSG"], "hash": os.environ["HASH"], "sender": os.environ.get("SENDER", ""), "timestamp": datetime.now(timezone.utc).isoformat()})
 os.makedirs(os.path.dirname(p) or ".", exist_ok=True)
 with open(p, "w") as f: json.dump(log, f, indent=2)
   '
@@ -583,22 +594,26 @@ for i in range(len(log)-1, -1, -1):
   if s == "executing" and last_exec_idx < 0: last_exec_idx = i
   if last_term != "none" and last_exec_idx >= 0: break
 pending_hash = ""
+pending_sender = ""
 if last_term == "executed" and last_exec_idx >= 0:
   for i in range(last_exec_idx+1, len(log)):
     if log[i].get("status") == "pending":
       with open(out, "w") as f: f.write(log[i].get("message", ""))
       pending_hash = log[i].get("hash", "")
+      pending_sender = log[i].get("sender", "")
       break
-sys.stdout.write(last_term + "\t" + pending_hash)
-' 2>/dev/null || printf 'none\t')
+sys.stdout.write(last_term + "\t" + pending_hash + "\t" + pending_sender)
+' 2>/dev/null || printf 'none\t\t')
 
 last_term="${py_out%%	*}"
-pending_hash="${py_out##*	}"
+rest="${py_out#*	}"
+pending_hash="${rest%%	*}"
+pending_sender="${rest##*	}"
 
 [[ "$last_term" != "executed" ]] && exit 0
 [[ -s "$pending_msg_file" ]] || exit 0
 
-exec "$DELIVER_SCRIPT" "$PROJECT_DIR" "$MUX_BACKEND" "$MUX_TARGET" "$DISPLAY_NAME" "$WORKTREE_PATH" "$LOGBOOK_PATH" "$BUNDLE_PATH" "$pending_hash" "$pending_msg_file"
+exec "$DELIVER_SCRIPT" "$PROJECT_DIR" "$MUX_BACKEND" "$MUX_TARGET" "$DISPLAY_NAME" "$WORKTREE_PATH" "$LOGBOOK_PATH" "$BUNDLE_PATH" "$pending_hash" "$pending_msg_file" "$pending_sender"
 HOOKEOF
 
   chmod +x "$stop_hook_script"
