@@ -38,7 +38,7 @@ Each non-master role worktree gets `autoCompactEnabled: true`, `CLAUDE_AUTOCOMPA
 
 Files changed: `swarmforge/scripts/swarmforge.sh` — added `write_deliver_script`, `write_stop_hook`; rewrote `write_notify_script`; extended `sessions.tsv` with worktree path; updated worktree wrappers to export `SWARMFORGE_SENDER_WORKTREE`.
 
-The prompt-driven queue is replaced with a shell harness. `notify-agent.sh` (generated at launch) validates the sender worktree, reads git HEAD, writes `sent`+`executed` to the sender's `logbook.json`, checks the receiver's logbook for last terminal state (`executing`/`executed`), and either runs the delivery sequence immediately or appends a `pending` entry. The shared `swarmforge-deliver.sh` (also generated) runs the 7-step delivery: write `executing` → git reset → `/clear` → sleep 1s → `/rename` → bundle → message. Each role gets a per-role stop hook (baked-in path vars) that reads its own logbook and delivers the first `pending` entry after the last `executing` on every agent stop. Role prompt cleanup (`pending-messages/` removal, logbook write instruction removal) is still pending on `four-pack` and `six-pack` — see [idea-A](../ideas/idea-A-notify-harness.md). When rebasing, reapply these changes on top of upstream `main`.
+The prompt-driven queue is replaced with a shell harness. `notify-agent.sh` (generated at launch) validates the sender worktree, reads git HEAD, writes `sent`+`executed` to the sender's `logbook.json`, checks the receiver's logbook for last terminal state (`executing`/`executed`), and either runs the delivery sequence immediately or appends a `pending` entry. The shared `swarmforge-deliver.sh` (also generated) runs the 7-step delivery: write `executing` → git reset → `/clear` → sleep 1s → `/rename` → bundle → message. Each role gets a per-role stop hook (baked-in path vars) that reads its own logbook and delivers the first `pending` entry after the last `executing` on every agent stop. Role prompt cleanup (`pending-messages/` removal, logbook write instruction removal) is still pending on `four-pack` and `six-pack` — see § "Design decisions: Idea A" below. When rebasing, reapply these changes on top of upstream `main`.
 
 ---
 
@@ -58,22 +58,23 @@ File changed: `swarmforge/constitution/workflow.prompt` on each branch. Upstream
 
 ## Proposed divergences
 
-Ideas under consideration. Not yet designed or implemented. Each has a detailed spec in `docs/ideas/`. When each is decided: move it to **Current divergences** with files, classification, and rebase instruction — or strike it as rejected.
+Ideas under consideration. Not yet designed or implemented. When each is decided: move it to **Current divergences** with files, classification, and rebase instruction — or strike it as rejected.
 
 | Idea | Summary | Spec | Open questions |
 |------|---------|------|----------------|
-| A | Notify harness — shell queue, `/clear` + bundle re-inject, Stop hook idle signal, commit hash in trailer | [idea-A](../ideas/idea-A-notify-harness.md) | **Partially implemented** — `swarmforge.sh` on `main` done (commit `08e7f25`); role prompt cleanup pending on `four-pack`/`six-pack` |
-| C | Integrator role — owns PR + CI + merge; specifier moves to own worktree | [idea-C](../ideas/idea-C-integrator-role.md) | **Decision** — design settled; see § "Design decisions: Idea C" below |
-| D | Role idle gates — no handoff = no action, remove startup install directives | [idea-D](../ideas/idea-D-idle-gates.md) | **Decision** — design settled; see § "Design decisions: Idea D" below |
-| E | Back-routing defects — always route to coder with failing step + repro | [idea-E](../ideas/idea-E-back-routing-defects.md) | **Decision** — design settled; see § "Design decisions: Idea E" below |
-| G | Per-technology engineering file — selected at install time | [idea-G](../ideas/idea-G-per-tech-engineering-file.md) | **Rejected** — adding a language is 2-3 lines in the shared table; template machinery is not justified |
-| H | swarm-cleanup --all mode | [idea-H](../ideas/idea-H-cleanup-all-mode.md) | **Rejected** — one-liner the operator can run manually; cmux UI covers the primary use case |
-| I | swarmforge/ write deny on role worktrees | [idea-I](../ideas/idea-I-swarmforge-write-deny.md) | **Rejected** — deferred; revisit if prompt drift becomes a real observed problem |
-| J | Session retro — `entire` auto-collects traces, `agent-retro` runs per turn | [idea-J](../ideas/idea-J-session-retro-entire.md) | **Decision** — design settled; see § "Design decisions: Idea J" below |
-| K | Setup / preflight — `entire enable` + `entire agent add` per backend, automatic at first `./swarm` | [idea-K](../ideas/idea-K-setup-preflight.md) | **Decision** — design settled; see § "Design decisions: Idea K" below |
-| L | Gherkin header sections — 7 mandatory sections per feature file (rubric + format) | [idea-L](../ideas/idea-L-gherkin-header-sections.md) | **Decision** — design settled; see § "Design decisions: Idea L" below |
-| M | UX Intent in the pipeline — specifier authors UX Intent, coder reads it, UX Engineer role (six-pack only) | [idea-M](../ideas/idea-M-ux-intent-pipeline.md) | **Decision** — design settled; see § "Design decisions: Idea M" below |
+| A | Notify harness — shell queue, `/clear` + bundle re-inject, Stop hook idle signal, commit hash in trailer | (this ADR) | **Partially implemented** — `swarmforge.sh` on `main` done (commit `08e7f25`); role prompt cleanup pending on `four-pack`/`six-pack` |
+| C | Integrator role — owns PR + CI + merge; specifier moves to own worktree | (this ADR) | **Decision** — design settled; see § "Design decisions: Idea C" below |
+| D | Role idle gates — no handoff = no action, remove startup install directives | (this ADR) | **Decision** — design settled; see § "Design decisions: Idea D" below |
+| E | Back-routing defects — always route to coder with failing step + repro | (this ADR) | **Decision** — design settled; see § "Design decisions: Idea E" below |
+| G | Per-technology engineering file — selected at install time | (this ADR) | **Rejected** — adding a language is 2-3 lines in the shared table; template machinery is not justified |
+| H | swarm-cleanup --all mode | (this ADR) | **Rejected** — one-liner the operator can run manually; cmux UI covers the primary use case |
+| I | swarmforge/ write deny on role worktrees | (this ADR) | **Rejected** — deferred; revisit if prompt drift becomes a real observed problem |
+| J | Session retro — `entire` auto-collects traces, `agent-retro` runs per turn | (this ADR) | **Decision** — design settled; see § "Design decisions: Idea J" below |
+| K | Setup / preflight — `entire enable` + `entire agent add` per backend, automatic at first `./swarm` | (this ADR) | **Decision** — design settled; see § "Design decisions: Idea K" below |
+| L | Gherkin header sections — 7 mandatory sections per feature file (rubric + format) | (this ADR) | **Decision** — design settled; see § "Design decisions: Idea L" below |
+| M | UX Intent in the pipeline — specifier authors UX Intent, coder reads it, UX Engineer role (six-pack only) | (this ADR) | **Decision** — design settled; see § "Design decisions: Idea M" below |
 | N | Install/upgrade — `./swarm upgrade` refreshes scripts, prompts, and skills; automatic skill install on first launch | (this ADR) | **Decision** — design settled; see § "Design decisions: Idea N" below |
+| O | Install scaffold — `.gitignore`, permission allow-rules, default-branch probe written at install time | (this ADR) | **Decision** — design settled; see § "Design decisions: Idea O" below |
 
 **Rejected**: D12–D15 (engineering prompt tweaks — test-type separation, property-test close-out, full-mutation rule, Gherkin mutation command inline) — too much prompt drift from upstream. D24 (role prompt restructure into Standing rules + numbered Lifecycle) — same reason. G (per-technology engineering file — template system not justified; adding a language is 2-3 lines in the shared table). H (swarm-cleanup --all — one-liner the operator runs manually; cmux UI covers the primary use case). I (swarmforge write-deny — deferred; revisit if prompt drift becomes an observed problem).
 
@@ -131,18 +132,19 @@ Design settled. See `CONTEXT.md` for domain vocabulary (UX Intent, UX Engineer).
 
 **Universal aesthetic anti-patterns inlined in role prompt.** A subset of visual quality rules (AI-slop anti-patterns, typography hierarchy, color contrast requirements) is inlined directly in `ux-engineer.prompt`. These are universal — they apply regardless of what any project's DESIGN.md says. All other content from the reference skill (component architecture, state management, accessibility implementation) belongs to the coder and QA, not the UX Engineer.
 
-**Pipeline after Idea M (six-pack):**
+**Pipeline after Idea M (six-pack) — corrected post-batch observation:**
 ```
-specifier → coder → cleaner → architect → hardener → UX Engineer → QA → integrator
+specifier → coder → UX Engineer → cleaner → architect → hardener → QA → integrator
 ```
+UX Engineer was originally placed between hardener and QA. Batch evidence (tetris, game-lifecycle) showed that placing UX after hardener caused the cleaner, architect, and hardener to each run twice per feature: once on coder output, then again after UX introduced rendering code. Moving UX to immediately after coder means cleaner sees all code (game + rendering) in one pass, architect sets boundaries with full knowledge of the implementation, and hardener runs once on the final state. See `CONTEXT.md` for the updated `UX Engineer` definition.
 
 **Files changed (six-pack only):**
 - `six-pack`: `swarmforge/templates/feature.feature` — add `## UX Intent` section
 - `six-pack`: `swarmforge/roles/specifier.prompt` — add UX Intent authoring step before phase 1; add DESIGN.md scaffolding step on first UX feature
-- `six-pack`: `swarmforge/roles/coder.prompt` — add UX Intent reading instruction
-- `six-pack`: `swarmforge/roles/hardener.prompt` — add rendering property tests instruction; change final notification from QA to ux-engineer
-- `six-pack`: `swarmforge/roles/ux-engineer.prompt` (new) — include DESIGN.md reading, fix authority over DESIGN.md violations, inlined aesthetic anti-patterns
-- `six-pack`: `swarmforge/swarmforge.conf` — fix `hardender` typo; add ux-engineer window between hardener and QA
+- `six-pack`: `swarmforge/roles/coder.prompt` — add UX Intent reading instruction; change final notification from cleaner to ux-engineer
+- `six-pack`: `swarmforge/roles/ux-engineer.prompt` (new) — include DESIGN.md reading, fix authority over DESIGN.md violations, inlined aesthetic anti-patterns; notify cleaner on completion
+- `six-pack`: `swarmforge/roles/hardener.prompt` — add rendering property tests instruction; notify QA (not ux-engineer) on completion
+- `six-pack`: `swarmforge/swarmforge.conf` — fix `hardender` typo; add ux-engineer window between coder and cleaner
 
 ---
 
@@ -253,7 +255,7 @@ Design settled. See `CONTEXT.md` for domain vocabulary (Landing, Routing cycle, 
 
 **Post-merge gate.** After merge: watch post-merge `main` CI with `gh run watch`. If the project's constitution/engineering.prompt defines a full verification suite command, run it on green. Skip if none defined — the CI gate is the minimum.
 
-**Specifier moves to own worktree.** Resets to `origin/main` at the start of each new task. Merge instruction removed from specifier prompt — integrator owns all merging.
+**Specifier moves to own worktree.** Resets to `origin/<default-branch>` at the start of each new task, where `<default-branch>` is written into `swarmforge.conf` (or probed via `git symbolic-ref refs/remotes/origin/HEAD`) at install time — not hardcoded as `main`. Merge instruction removed from specifier prompt — integrator owns all merging.
 
 **Terminal quality roles redirect to integrator.** Architect (four-pack) and QA (six-pack) notify integrator instead of specifier. The integrator notifies the specifier after the PR lands.
 
@@ -292,10 +294,12 @@ Design settled. See `CONTEXT.md` for domain vocabulary. Key decisions recorded h
 **One logbook per role.** Contains both outbound state (what this role sent) and inbound state (tasks queued for this role).
 
 **Logbook statuses:**
-- `pending` — appended by `notify-agent.sh` into the TARGET role's logbook when that role is busy; contains message content. Multiple entries allowed; delivered in order.
-- `executing` — written by harness as step 0 of the delivery sequence (before `/clear`).
+- `pending` — appended by `notify-agent.sh` into the TARGET role's logbook when that role is busy. Carries `{status, timestamp, message, hash, sender}`. Multiple entries allowed; delivered in order.
+- `executing` — written by harness as step 0 of the delivery sequence (before `/clear`). Carries `{status, timestamp, message, hash, sender}` forwarded from the `pending` entry being delivered, so the role can recover its task if the session restarts mid-task.
 - `sent` — written by `notify-agent.sh` to the CALLING role's own logbook; audit trail (target, message, commit hash).
-- `executed` — written by `notify-agent.sh` to the CALLING role's own logbook immediately after `sent`; the act of calling `notify-agent.sh` is the task-complete signal. The Stop hook reads this as the idle signal.
+- `executed` — written by `notify-agent.sh` to the CALLING role's own logbook immediately after `sent`; the act of calling `notify-agent.sh` is the task-complete signal. Carries an optional `summary` field for structured task output (verification results, defect list, etc.). The Stop hook reads this as the idle signal.
+
+**`logbook.json` is always gitignored.** It is per-role, per-worktree harness state. If committed, the delivery sequence's `git reset --hard <hash>` will overwrite it, corrupting logbook state. The install scaffold (Idea O) adds `logbook.json` to `.gitignore` before any agent runs.
 
 **`notify-agent.sh` never rejects.** If receiver is busy, it always appends a `pending` entry. No error path for "already queued."
 
@@ -311,6 +315,21 @@ Design settled. See `CONTEXT.md` for domain vocabulary. Key decisions recorded h
 **Stop hook logic:** Read own logbook. Find last terminal status (`executing` or `executed`). If `executed`: find first `pending` entry that appears after the last `executing` entry — deliver it via the delivery sequence. Otherwise do nothing.
 
 **Cross-logbook scanning removed.** The Stop hook only reads its own logbook. No scanning of sender logbooks.
+
+### Design decisions: Idea O
+
+Design settled. No new domain vocabulary.
+
+**`.gitignore` generated at install if absent; appended if present.** The install writes `logbook.json`, `tmp/`, `.swarmforge/` to `.gitignore`. If the file already exists, only missing entries are appended — existing project entries are never removed. Rationale: a committed `logbook.json` causes the delivery sequence's `git reset --hard <hash>` to overwrite logbook state, corrupting harness tracking. This is the highest-severity consequence of a missing `.gitignore`.
+
+**Default branch probed at install time; written to `swarmforge.conf`.** The install runs `git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||'` to determine the project's default branch and records it in `swarmforge.conf` as a `default_branch` variable. Role prompts reference this variable instead of hardcoding `main`. Rationale: hardcoding `origin/main` breaks on projects using `master` or any other convention — the specifier's mandatory startup reset (`git reset --hard origin/<default-branch>`) silently fails and blocks the entire pipeline on every activation.
+
+**Permission allow-rules written to `.claude/settings.json` at install.** Two rules are appended under `permissions.allow`: `Bash(gh pr merge*)` for the integrator's autonomous merge step, and `Bash(git reset --hard origin/<default-branch>)` scoped to the specifier's worktree. Both are mandatory lifecycle steps that block in auto-mode without pre-authorization, requiring user intervention on every activation. Rationale: these are known-safe, role-scoped operations — not blanket allow-rules.
+
+**Files changed:**
+- `four-pack` + `six-pack`: `./swarm` — add `.gitignore` generation, default-branch probe, and `settings.json` permission injection to the install sequence
+
+---
 
 ## Rebase procedure for agents
 

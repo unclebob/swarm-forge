@@ -35,7 +35,7 @@ swarmforge/swarmforge.conf          # role → agent → worktree mapping
 swarmforge/constitution.prompt      # entry point, delegates to constitution/ files
 swarmforge/constitution/
   project.prompt
-  engineering.prompt                # generated at install time (see docs/ideas/idea-G)
+  engineering.prompt                # static language-tool rules; edit manually when adding a language
   workflow.prompt                   # handoff and logbook rules live here
 swarmforge/roles/<role>.prompt      # one file per role in swarmforge.conf
 swarmforge/templates/feature.feature  # Gherkin 7-section header template
@@ -43,7 +43,7 @@ swarmforge/templates/feature.feature  # Gherkin 7-section header template
 
 ## logbook.json
 
-`logbook.json` is **gitignored and local per worktree**. Agents maintain it for handoff history but must never commit it.
+`logbook.json` is **gitignored and local per worktree**. The harness owns all writes; agents never write to it and must never commit it.
 
 ## swarmforge.conf Format
 
