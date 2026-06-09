@@ -63,7 +63,9 @@ get_tmux_option() {
       value="$(tmux -S "$TMUX_SOCKET" show-options -gqv "$option" 2>/dev/null || true)"
       ;;
     window)
-      value="$(tmux -S "$TMUX_SOCKET" show-window-options -gqv "$option" 2>/dev/null || true)"
+      # -w reads the window-options table; -q is only valid on show-options,
+      # not on show-window-options, on modern tmux (e.g. 3.6a).
+      value="$(tmux -S "$TMUX_SOCKET" show-options -gwqv "$option" 2>/dev/null || true)"
       ;;
   esac
 
@@ -355,7 +357,7 @@ TMUX_WINDOW_BASE_INDEX="$(tmux -S "$TMUX_SOCKET" show-options -gqv base-index 2>
 if [[ ! "$TMUX_WINDOW_BASE_INDEX" == <-> ]]; then
   TMUX_WINDOW_BASE_INDEX=0
 fi
-TMUX_PANE_BASE_INDEX="$(tmux -S "$TMUX_SOCKET" show-window-options -gqv pane-base-index 2>/dev/null || echo 0)"
+TMUX_PANE_BASE_INDEX="$(tmux -S "$TMUX_SOCKET" show-options -gwqv pane-base-index 2>/dev/null || echo 0)"
 if [[ ! "$TMUX_PANE_BASE_INDEX" == <-> ]]; then
   TMUX_PANE_BASE_INDEX=0
 fi
