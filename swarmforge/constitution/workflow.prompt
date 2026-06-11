@@ -13,14 +13,14 @@
 - Maintain the tracked root `logbook.jsonl` file for every handoff received or sent.
 - Keep `logbook.jsonl` as append-only JSON Lines. Each line is one complete JSON object; never rewrite, reformat, sort, summarize, or merge existing entries.
 - Each log entry must include `timestamp`, `direction`, `message`, and `note` fields. Use `direction` values `received`, `sent`, or `queued`.
-- Use `send-handoff.sh` and `receive-handoff.sh` to append normal sent, received, queued, and resend-request entries to `logbook.jsonl`.
+- Use `notify-agent.sh send` and `notify-agent.sh receive` to append normal sent, received, queued, and resend-request entries to `logbook.jsonl`.
 - Do not hand-edit handoff logbook entries unless a helper script fails and explicit user direction says to repair the logbook manually.
 - If a merge conflict occurs in `logbook.jsonl`, keep all complete JSON lines from both sides. Preserve message text exactly; order chronologically when obvious, otherwise keep both groups intact.
 - Commit `logbook.jsonl` updates with the next substantive role-owned commit or outgoing handoff commit. Make a logbook-only commit only when no other work will be committed for that handoff, such as a queued handoff that requires no role-specific work.
 
 ## Handoff Format
-- For every outgoing handoff, write only the role-specific handoff body to `./tmp/<target-role>-handoff.txt`, then send it with `send-handoff.sh <target-role> --file ./tmp/<target-role>-handoff.txt`.
-- `send-handoff.sh` wraps the body with `message type`, `message id`, `sender role`, `target role`, and `message sequence` fields, archives the sent message, appends the sent logbook entry, and calls `notify-agent.sh`.
+- For every outgoing handoff, write only the role-specific handoff body to `./tmp/<target-role>-handoff.txt`, then send it with `notify-agent.sh send <target-role> --file ./tmp/<target-role>-handoff.txt`.
+- `notify-agent.sh send` wraps the body with `message type`, `message id`, `sender role`, `target role`, and `message sequence` fields, archives the sent message, appends the sent logbook entry, and sends the message.
 - `message id` values have this form: `handoff-YYYYMMDD-HHMMSS-sender-target-NNNNNN-XXXXXX` for handoffs and `resend-request-YYYYMMDD-HHMMSS-sender-target-NNNNNN-XXXXXX` for resend requests. `NNNNNN` is the per sender-target sequence number, and `XXXXXX` is a six-character random lowercase hexadecimal suffix.
 - Start every handoff body with: `Re-read your role and constitution.`
 - The specifier invents a short, stable handoff name for each accepted specification handoff.
@@ -29,11 +29,11 @@
 - Do not tell the receiving role how to do its job, repeat your process, or ask it to continue sender-owned responsibilities. The normal request is: `Apply your own role rules to this state.`
 
 ## Receiving Handoffs
-- When receiving any handoff or resend request, save the complete incoming message to `./tmp/incoming-handoff.txt` or another local file, then run `receive-handoff.sh --file <saved-message-file>`.
-- Process the handoff only if `receive-handoff.sh` reports `OK to process` and exits successfully.
-- If `receive-handoff.sh` reports `DO NOT PROCESS`, do not merge, apply, or otherwise act on that handoff; the helper has detected an out-of-order, duplicate, or stale message and has requested any required resend.
-- If a handoff sequence is greater than one more than the last processed sequence for that sender-target stream, `receive-handoff.sh` sends a `resend-request` for the missing sequence range including the out-of-order handoff itself.
-- If a `resend-request` is received, `receive-handoff.sh` resends the archived requested messages and exits without role-specific work.
+- When receiving any handoff or resend request, save the complete incoming message to `./tmp/incoming-handoff.txt` or another local file, then run `notify-agent.sh receive --file <saved-message-file>`.
+- Process the handoff only if `notify-agent.sh receive` reports `OK to process` and exits successfully.
+- If `notify-agent.sh receive` reports `DO NOT PROCESS`, do not merge, apply, or otherwise act on that handoff; the helper has detected an out-of-order, duplicate, or stale message and has requested any required resend.
+- If a handoff sequence is greater than one more than the last processed sequence for that sender-target stream, `notify-agent.sh receive` sends a `resend-request` for the missing sequence range including the out-of-order handoff itself.
+- If a `resend-request` is received, `notify-agent.sh receive` resends the archived requested messages and exits without role-specific work.
 - After receiving a handoff, merge the sender branch state identified by the handoff branch name and 10-character commit hash into your assigned branch before applying your own role rules.
 - When receiving a handoff, ignore sender process narrative and decide next actions only from your own role prompt, the constitution, and the current project state.
 
@@ -45,8 +45,8 @@
   - Use priority `50` for normal messages unless a role prompt or explicit user instruction sets a different priority.
   - Finish the current job before acting on queued messages.
   - After the current job is complete and any required handoff has been sent, process queued message files in sorted filename order.
-  - Before removing any queued handoff file, run `receive-handoff.sh --file <queued-message-file>` so the helper records the logbook entry and validates message sequence.
-  - Process the queued handoff only if `receive-handoff.sh` reports `OK to process`.
+  - Before removing any queued handoff file, run `notify-agent.sh receive --file <queued-message-file>` so the helper records the logbook entry and validates message sequence.
+  - Process the queued handoff only if `notify-agent.sh receive` reports `OK to process`.
   - Delete each queued message file only after processing it. Do not use `rm -f`; use a non-forced deletion command so queue cleanup does not trigger escalation.
 
 ## Failure Conditions
