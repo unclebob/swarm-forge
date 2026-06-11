@@ -1,8 +1,15 @@
 # Project Rules
 
+## Project Shape
 - This project is configured for SwarmForge with four Codex-backed agents: specifier, coder, refactorer, and architect.
 - Project language: Go.
+
+## Local Configuration
 - Preserve project-local SwarmForge configuration under `swarmforge/`.
 - Keep swarm state local under `.swarmforge/`, worktrees under `.worktrees/`, and shared scripts under `swarmforge/scripts/`.
+
+## Handoffs
 - Prefer terse, explicit handoffs that report state and request role-appropriate review. Do not include verifications or sender process narrative.
+
+## Ownership
 - Do not change another role's prompt or workflow ownership without explicit user direction.
