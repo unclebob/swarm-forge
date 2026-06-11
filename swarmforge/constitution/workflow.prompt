@@ -5,12 +5,13 @@
 - Work only in your assigned branch or worktree.
 - Do not inspect, diff, merge, or base work on another branch unless that branch is specifically named in a handoff or explicit user instruction.
 - Use `./tmp/` in your assigned worktree for temporary files; do not use `/tmp`.
-- Maintain the tracked root `logbook.json` file for every handoff received or sent.
-- Keep `logbook.json` as a JSON array of entry objects in chronological order; append new entries at the end and preserve valid JSON.
+- Maintain the tracked root `logbook.jsonl` file for every handoff received or sent.
+- Keep `logbook.jsonl` as append-only JSON Lines. Each line is one complete JSON object; never rewrite, reformat, sort, summarize, or merge existing entries.
 - Each log entry must include `timestamp`, `direction`, `message`, and `note` fields. Use `direction` values `received`, `sent`, or `queued`.
-- When receiving a handoff, append a `logbook.json` entry with a timestamp, direction `received`, the complete handoff message received, and a brief note describing the action taken.
-- When sending a handoff, append a `logbook.json` entry with a timestamp, direction `sent`, the complete handoff message sent, and a brief note summarizing the handoff contents.
-- Commit `logbook.json` updates with the next substantive role-owned commit or outgoing handoff commit. Make a logbook-only commit only when no other work will be committed for that handoff, such as a queued handoff that requires no role-specific work.
+- When receiving a handoff, append one complete JSON object line to `logbook.jsonl` with a timestamp, direction `received`, the complete handoff message received, and a brief note describing the action taken.
+- When sending a handoff, append one complete JSON object line to `logbook.jsonl` with a timestamp, direction `sent`, the complete handoff message sent, and a brief note summarizing the handoff contents.
+- If a merge conflict occurs in `logbook.jsonl`, keep all complete JSON lines from both sides. Preserve message text exactly; order chronologically when obvious, otherwise keep both groups intact.
+- Commit `logbook.jsonl` updates with the next substantive role-owned commit or outgoing handoff commit. Make a logbook-only commit only when no other work will be committed for that handoff, such as a queued handoff that requires no role-specific work.
 - For every handoff, write the complete handoff message to `./tmp/<target-role>-handoff.txt`, then send it with `notify-agent.sh <target-role> --file ./tmp/<target-role>-handoff.txt`.
 - Start every handoff message with: `Re-read your role and constitution.`
 - The specifier invents a short, stable handoff name for each accepted specification handoff.
@@ -26,6 +27,6 @@
   - Use priority `50` for normal messages unless a role prompt or explicit user instruction sets a different priority.
   - Finish the current job before acting on queued messages.
   - After the current job is complete and any required handoff has been sent, process queued message files in sorted filename order.
-  - Before removing any queued handoff file, append a `logbook.json` entry with a timestamp, direction `queued`, the complete handoff message from that file, and a note explaining why the queued file is being removed.
+  - Before removing any queued handoff file, append one complete JSON object line to `logbook.jsonl` with a timestamp, direction `queued`, the complete handoff message from that file, and a note explaining why the queued file is being removed.
   - Delete each queued message file only after processing it. Do not use `rm -f`; use a non-forced deletion command so queue cleanup does not trigger escalation.
 - If the expected git layout or assigned worktree is missing, stop and report instead of silently working in the wrong place.
