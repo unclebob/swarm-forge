@@ -23,8 +23,7 @@
 
 ## Acceptance Pipeline
 - Use github.com/unclebob/Acceptance-Pipeline-Specification for Gherkin acceptance tests.
-- The Acceptance Pipeline Specification supplies `gherkin-parser` and `gherkin-mutator` as Go commands; install or build those commands from that repository instead of reimplementing them in the project.
-- Build APS-supplied commands with Go regardless of the target project language.
+- The Acceptance Pipeline Specification supplies `gherkin-parser` and `gherkin-mutator`; install or build those commands from that repository instead of reimplementing them in the project.
 - Project-specific acceptance pipeline components are the acceptance entrypoint generator, acceptance runtime, project step handlers, runner adapter, and convenience scripts.
 - Gherkin acceptance mutation means running `gherkin-mutator` to mutate Gherkin example values.
 - Gherkin acceptance mutation runs must report periodic progress/status so agents can distinguish normal long-running work from a hang.
