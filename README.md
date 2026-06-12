@@ -132,15 +132,34 @@ In a runnable branch:
 
 ## Handoff Helpers
 
-Agents should use the higher-level `notify-agent.sh` subcommands instead of the low-level transport form.
+Startup syncs the shared helper scripts into every role worktree under `swarmforge/scripts/` and puts that local directory on the agent's `PATH`. Agents should use the `notify-agent.sh` subcommands rather than running helper scripts from another worktree.
 
-To send a handoff, write the role-specific body to a file and run:
+The agent-facing commands are:
+
+```sh
+notify-agent.sh send <target-role> --file ./tmp/<target-role>-handoff.txt
+notify-agent.sh receive --file ./tmp/incoming-handoff.txt
+```
+
+The shared script directory also contains implementation helpers:
+
+- `notify-agent.sh` is the public entry point and low-level tmux transport.
+- `send-handoff.sh` builds sequenced protocol messages, archives outbound handoffs, sends them, and logs successful sends.
+- `receive-handoff.sh` validates incoming protocol messages, records received or queued entries, and generates resend requests when ordering gaps appear.
+- `resend-handoff.sh` replays archived outbound handoffs in response to resend requests.
+- `handoff-lib.sh` contains shared parsing, id generation, sequence, archive, and logbook functions.
+
+Agents normally call only `notify-agent.sh send` and `notify-agent.sh receive`. The other scripts are kept separate so the transport, sequencing, receive validation, and replay behavior are easy to inspect and test.
+
+## Communication Protocol
+
+Agents communicate by file-based messages sent through tmux. A sender writes only the role-specific handoff body, then runs:
 
 ```sh
 notify-agent.sh send <target-role> --file ./tmp/<target-role>-handoff.txt
 ```
 
-The helper wraps the body with protocol fields:
+`notify-agent.sh send` wraps that body with protocol fields:
 
 ```text
 message type: handoff
@@ -150,21 +169,55 @@ target role: target
 message sequence: NNNNNN
 ```
 
-Sequence numbers are per sender-target stream. Sent messages are archived in the sender's worktree under `.swarmforge/handoffs/sent/` so they can be replayed later.
+Sequence numbers are per sender-target stream. For example, `coder-cleaner` has its own sequence, and `cleaner-coder` has a separate reverse sequence. The six-character suffix prevents id collisions when two messages are created in the same second.
 
-When an agent receives a handoff, it should save the complete incoming message and run:
+The sender archives each outbound message under:
+
+```text
+.swarmforge/handoffs/sent/<sender-target>/<sequence>.txt
+```
+
+After the low-level tmux send succeeds, the sender appends a `sent` entry to `logbook.jsonl`. If the tmux notification fails, the message remains archived for possible manual recovery, but no `sent` logbook entry is written.
+
+When an agent receives a message, it saves the complete incoming text to a file and runs:
 
 ```sh
 notify-agent.sh receive --file ./tmp/incoming-handoff.txt
 ```
 
-If the sequence is exactly one greater than the last processed message from that sender, the helper records the message and reports that it is OK to process. If the sequence has a gap, the helper archives the out-of-order message, records a queued logbook entry, sends a `resend-request` for the missing range including the out-of-order message, and tells the agent not to process it.
+The receive helper checks `message type`, `message id`, sender, target, and sequence. If the message is valid and in order, it archives the message, appends a `received` entry to `logbook.jsonl`, updates the last processed sequence for that sender-target stream, and prints `OK to process`.
 
-`notify-agent.sh` also keeps a low-level tmux transport form for the helper implementation:
+`notify-agent.sh` also keeps a low-level transport form for helper implementation and diagnostics:
 
 ```sh
 notify-agent.sh <target-role-or-index> --file <message-file>
 ```
+
+Agents should not use the low-level form for normal handoffs because it bypasses sequencing, archiving, resend recovery, and logbook handling.
+
+## Recovery Strategy
+
+The protocol is designed for eventual correction rather than tmux-pane sniffing.
+
+If `notify-agent.sh receive` sees the next expected sequence, the agent may process the handoff. If it sees a sequence gap, it archives the out-of-order message, appends a queued logbook entry, sends a `resend-request` back to the sender, and prints `DO NOT PROCESS`.
+
+The resend request is itself a sequenced message in the reverse sender-target stream:
+
+```text
+message type: resend-request
+message id: resend-request-YYYYMMDD-HHMMSS-sender-target-NNNNNN-XXXXXX
+sender role: receiver
+target role: original-sender
+message sequence: NNNNNN
+resend stream: original-sender-receiver
+resend sequences: 000003-000005
+```
+
+The missing range includes the out-of-order message that exposed the gap. That keeps recovery simple: the original sender replays one contiguous range, and the receiver processes messages only when they arrive in sequence.
+
+When a sender receives a `resend-request`, `notify-agent.sh receive` calls `resend-handoff.sh`, which reads archived messages from `.swarmforge/handoffs/sent/` and resends each requested sequence. Resent messages are logged as sent only after the low-level notification succeeds.
+
+Duplicate or stale messages are archived and logged as queued, but the helper prints `DO NOT PROCESS`. Agents should not merge, apply, or otherwise act on a handoff unless `notify-agent.sh receive` explicitly reports `OK to process`.
 
 ## The `swarmforge.conf` File
 
