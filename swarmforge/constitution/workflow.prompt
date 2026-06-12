@@ -22,7 +22,7 @@
 ## Handoff Format
 - For every outgoing handoff, write only the role-specific handoff body to `./tmp/<target-role>-handoff.txt`, then send it with `notify-agent.sh send <target-role> --file ./tmp/<target-role>-handoff.txt`.
 - `notify-agent.sh send` wraps the body with `message type`, `message id`, `sender role`, `target role`, and `message sequence` fields, archives the sent message, appends the sent logbook entry, and sends the message.
-- `message id` values have this form: `handoff-YYYYMMDD-HHMMSS-sender-target-NNNNNN-XXXXXX` for handoffs and `resend-request-YYYYMMDD-HHMMSS-sender-target-NNNNNN-XXXXXX` for resend requests. `NNNNNN` is the per sender-target sequence number, and `XXXXXX` is a six-character random lowercase hexadecimal suffix.
+- `message id` values have this form: `YYYYMMDD-HHMMSS-XXXXXX`, where `XXXXXX` is a six-character random lowercase hexadecimal suffix. Message type, sender, target, and sequence are recorded in separate fields.
 - Start every handoff body with: `Re-read your role and constitution.`
 - The specifier invents a short, stable handoff name for each accepted specification handoff.
 - Every later handoff for that work must include the specifier handoff name.
