@@ -47,7 +47,8 @@
 - Queue file names begin with the sender-specified two-digit priority, then a timestamp, stream, and sequence. Process accepted queue files in sorted filename order.
 - Do not run `notify-agent.sh receive` on accepted queue files. They have already passed receive validation.
 - If one or more accepted handoffs are queued while you are busy, finish the current job before acting on queued messages.
-- Delete each accepted queue file only after completing the role work for it. Do not use `rm -f`; use a non-forced deletion command so queue cleanup does not trigger escalation.
+- After finishing the accepted queue file, run `notify-agent.sh complete --file <accepted-queue-file>`.
+- Do not delete accepted queue files directly.
 
 ## Failure Conditions
 - If the expected git layout or assigned worktree is missing, stop and report instead of silently working in the wrong place.
