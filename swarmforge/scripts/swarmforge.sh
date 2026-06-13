@@ -22,7 +22,9 @@ STATE_DIR="$WORKING_DIR/.swarmforge"
 WINDOW_IDS_FILE="$STATE_DIR/window-ids"
 WINDOW_STATE_FILE="$STATE_DIR/windows.tsv"
 WINDOW_WATCHDOG_LOG="$STATE_DIR/window-watchdog.log"
+DELIVERY_ROUTER_LOG="$STATE_DIR/delivery-router.log"
 SESSIONS_FILE="$STATE_DIR/sessions.tsv"
+DELIVERY_OUTBOXES_FILE="$STATE_DIR/delivery-outboxes.tsv"
 PROMPTS_DIR="$STATE_DIR/prompts"
 TMUX_SOCKET_DIR="$STATE_DIR/tmux"
 PROJECT_SOCKET_ID="$(printf '%s' "$WORKING_DIR" | cksum)"
@@ -277,7 +279,7 @@ write_sessions_file() {
 
 check_helper_scripts() {
   local helper
-  for helper in notify-agent.sh send-handoff.sh receive-handoff.sh resend-handoff.sh complete-handoff.sh handoff-lib.sh swarm-cleanup.sh swarm-window-watchdog.sh swarm-terminal-adapter.sh; do
+  for helper in notify-agent.sh send-handoff.sh receive-handoff.sh resend-handoff.sh complete-handoff.sh handoff-lib.sh swarm-cleanup.sh swarm-delivery-router.sh swarm-window-watchdog.sh swarm-terminal-adapter.sh; do
     if [[ ! -x "$SCRIPT_DIR/$helper" ]]; then
       echo -e "${RED}Error:${RESET} Required helper script not found or not executable: $SCRIPT_DIR/$helper"
       exit 1
@@ -317,24 +319,34 @@ prepare_worktrees() {
 }
 
 sync_worktree_scripts() {
-  local i worktree_path role_scripts_dir role_state_dir
+  local i role worktree_path role_scripts_dir role_state_dir role_outbox_dir
+  : > "$DELIVERY_OUTBOXES_FILE"
   for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
+    role="${ROLES[$i]}"
     worktree_path="${WORKTREE_PATHS[$i]}"
+    role_state_dir="$worktree_path/.swarmforge"
+    role_outbox_dir="$role_state_dir/handoffs/outbox"
+    mkdir -p "$role_state_dir" "$role_outbox_dir"
+    printf '%s\t%s\n' "$role" "$role_outbox_dir" >> "$DELIVERY_OUTBOXES_FILE"
+    printf '%s\n' "$role_outbox_dir" > "$role_state_dir/delivery-outbox"
+
     if [[ "$worktree_path" == "$WORKING_DIR" ]]; then
       continue
     fi
 
     role_scripts_dir="$worktree_path/swarmforge/scripts"
-    role_state_dir="$worktree_path/.swarmforge"
-    role_socket_dir="$role_state_dir/tmux"
-    role_socket="$role_socket_dir/${TMUX_SOCKET:t}"
     mkdir -p "$role_scripts_dir"
     cp -R "$SCRIPT_DIR/." "$role_scripts_dir/"
-    mkdir -p "$role_state_dir" "$role_socket_dir"
-    ln -sf "$TMUX_SOCKET" "$role_socket"
+    mkdir -p "$role_state_dir"
     cp "$SESSIONS_FILE" "$role_state_dir/sessions.tsv"
-    printf '%s\n' "$role_socket" > "$role_state_dir/tmux-socket"
   done
+}
+
+start_delivery_router() {
+  nohup "$SCRIPT_DIR/swarm-delivery-router.sh" \
+    "$TMUX_SOCKET" \
+    "$SESSIONS_FILE" \
+    "$DELIVERY_OUTBOXES_FILE" > "$DELIVERY_ROUTER_LOG" 2>&1 &
 }
 
 check_backend_dependencies() {
@@ -470,6 +482,8 @@ echo -e "${GREEN}Launching SwarmForge tmux sessions...${RESET}"
 for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
   create_role_session "${SESSIONS[$i]}" "${DISPLAY_NAMES[$i]}"
 done
+
+start_delivery_router
 
 echo -e "${GREEN}Starting agents...${RESET}"
 for (( i = 1; i <= ${#ROLES[@]}; i++ )); do

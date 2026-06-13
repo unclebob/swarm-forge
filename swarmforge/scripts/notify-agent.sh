@@ -43,7 +43,7 @@ find_project_dir() {
   local git_common_dir worktree_root
 
   if worktree_root=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null); then
-    if [[ -f "$worktree_root/.swarmforge/sessions.tsv" && -f "$worktree_root/.swarmforge/tmux-socket" ]]; then
+    if [[ -f "$worktree_root/.swarmforge/sessions.tsv" && -f "$worktree_root/.swarmforge/delivery-outbox" ]]; then
       echo "$worktree_root"
       return 0
     fi
@@ -65,7 +65,7 @@ find_project_dir() {
 
 PROJECT_DIR="$(find_project_dir)"
 SESSIONS_FILE="$PROJECT_DIR/.swarmforge/sessions.tsv"
-TMUX_SOCKET_FILE="$PROJECT_DIR/.swarmforge/tmux-socket"
+DELIVERY_OUTBOX_FILE="$PROJECT_DIR/.swarmforge/delivery-outbox"
 
 if [[ ! -f "$SESSIONS_FILE" ]]; then
   echo "Sessions file not found: $SESSIONS_FILE" >&2
@@ -97,23 +97,24 @@ if [[ ! -f "$MESSAGE_FILE" ]]; then
 fi
 MESSAGE="$(< "$MESSAGE_FILE")"
 
-if [[ ! -f "$TMUX_SOCKET_FILE" ]]; then
-  echo "Tmux socket file not found: $TMUX_SOCKET_FILE" >&2
-  exit 1
+if [[ -f "$DELIVERY_OUTBOX_FILE" ]]; then
+  DELIVERY_OUTBOX="$(< "$DELIVERY_OUTBOX_FILE")"
+else
+  DELIVERY_OUTBOX="$PROJECT_DIR/.swarmforge/handoffs/outbox"
 fi
 
-TMUX_SOCKET="$(< "$TMUX_SOCKET_FILE")"
-TMUX_WINDOW_BASE_INDEX="$(tmux -S "$TMUX_SOCKET" show-options -gqv base-index 2>/dev/null || echo 0)"
-if [[ ! "$TMUX_WINDOW_BASE_INDEX" == <-> ]]; then
-  TMUX_WINDOW_BASE_INDEX=0
-fi
-TMUX_PANE_BASE_INDEX="$(tmux -S "$TMUX_SOCKET" show-window-options -gqv pane-base-index 2>/dev/null || echo 0)"
-if [[ ! "$TMUX_PANE_BASE_INDEX" == <-> ]]; then
-  TMUX_PANE_BASE_INDEX=0
-fi
+mkdir -p "$DELIVERY_OUTBOX"
 
-tmux -S "$TMUX_SOCKET" send-keys -t "${TARGET_SESSION}:${TMUX_WINDOW_BASE_INDEX}.${TMUX_PANE_BASE_INDEX}" -l -- "$MESSAGE"
-sleep 0.15
-tmux -S "$TMUX_SOCKET" send-keys -t "${TARGET_SESSION}:${TMUX_WINDOW_BASE_INDEX}.${TMUX_PANE_BASE_INDEX}" C-m
-sleep 0.05
-tmux -S "$TMUX_SOCKET" send-keys -t "${TARGET_SESSION}:${TMUX_WINDOW_BASE_INDEX}.${TMUX_PANE_BASE_INDEX}" C-j
+DELIVERY_ID="$(date '+%Y%m%d-%H%M%S')-$$-$RANDOM"
+TMP_DELIVERY="$DELIVERY_OUTBOX/.$DELIVERY_ID.tmp"
+READY_DELIVERY="$DELIVERY_OUTBOX/$DELIVERY_ID.ready"
+
+{
+  printf 'target session: %s\n' "$TARGET_SESSION"
+  printf 'target role: %s\n' "$TARGET"
+  printf '\n'
+  printf '%s' "$MESSAGE"
+} > "$TMP_DELIVERY"
+
+mv "$TMP_DELIVERY" "$READY_DELIVERY"
+echo "QUEUED $READY_DELIVERY"
