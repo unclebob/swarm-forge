@@ -2,16 +2,16 @@
 
 ## Sending Handoffs
 - For every outgoing handoff, write the handoff body to `./tmp/<target-role>-handoff.txt`.
-- Send it with `notify-agent.sh send <target-role> --file ./tmp/<target-role>-handoff.txt`.
+- To send it, write `.swarmforge/notify/request` with `command: send`, `target: <target-role>`, and `file: ./tmp/<target-role>-handoff.txt`, then run `notify-agent.sh` with no arguments.
 - Keep the handoff body short. Start it with: `Re-read your role and constitution.`
 - Do not include branch names, commit hashes, verification notes, or implementation instructions in the body.
 
 ## Receiving Handoffs
 - Save the complete incoming message to `./tmp/incoming-handoff.txt` or another local file.
-- Run `notify-agent.sh receive --file <saved-message-file>`.
+- To receive it, write `.swarmforge/notify/request` with `command: receive` and `file: <saved-message-file>`, then run `notify-agent.sh` with no arguments.
 - If the helper reports `DO NOT PROCESS`, stop.
-- Process only accepted queue files created by `notify-agent.sh receive` under `.swarmforge/handoffs/queue/accepted/`.
-- After finishing the accepted queue file, run `notify-agent.sh complete --file <accepted-queue-file>`.
+- Process only accepted queue files created by the receive helper under `.swarmforge/handoffs/queue/accepted/`.
+- After finishing the accepted queue file, write `.swarmforge/notify/request` with `command: complete` and `file: <accepted-queue-file>`, then run `notify-agent.sh` with no arguments.
 - Do not delete accepted queue files directly.
 
 ## Cycle

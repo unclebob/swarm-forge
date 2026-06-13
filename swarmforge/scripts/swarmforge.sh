@@ -19,6 +19,7 @@ CONFIG_FILE="$SWARM_FORGE_DIR/swarmforge.conf"
 ROLES_DIR="$SWARM_FORGE_DIR/roles"
 CONSTITUTION_FILE="$SWARM_FORGE_DIR/constitution.prompt"
 STATE_DIR="$WORKING_DIR/.swarmforge"
+NOTIFY_DIR="$STATE_DIR/notify"
 WINDOW_IDS_FILE="$STATE_DIR/window-ids"
 WINDOW_STATE_FILE="$STATE_DIR/windows.tsv"
 WINDOW_WATCHDOG_LOG="$STATE_DIR/window-watchdog.log"
@@ -294,7 +295,7 @@ check_helper_scripts() {
 }
 
 prepare_workspace() {
-  mkdir -p "$STATE_DIR" "$PROMPTS_DIR" "$WORKTREES_DIR" "$TMUX_SOCKET_DIR"
+  mkdir -p "$STATE_DIR" "$NOTIFY_DIR" "$PROMPTS_DIR" "$WORKTREES_DIR" "$TMUX_SOCKET_DIR"
   printf '%s\n' "$TMUX_SOCKET" > "$TMUX_SOCKET_FILE"
   check_helper_scripts
   write_sessions_file
@@ -335,7 +336,7 @@ sync_worktree_scripts() {
     role_state_dir="$worktree_path/.swarmforge"
     mkdir -p "$role_scripts_dir"
     cp -R "$SCRIPT_DIR/." "$role_scripts_dir/"
-    mkdir -p "$role_state_dir"
+    mkdir -p "$role_state_dir/notify"
     cp "$SESSIONS_FILE" "$role_state_dir/sessions.tsv"
     cp "$TMUX_SOCKET_FILE" "$role_state_dir/tmux-socket"
     cp "$TMUX_ENV_FILE" "$role_state_dir/tmux-env"
@@ -490,7 +491,7 @@ for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
   echo -e "  ${DISPLAY_NAMES[$i]}: ${SESSIONS[$i]}"
 done
 echo ""
-echo -e "${GREEN}Tip: Use notify-agent.sh send <role> --file <body-file> while the swarm is running.${RESET}"
+echo -e "${GREEN}Tip: Write .swarmforge/notify/request, then run notify-agent.sh while the swarm is running.${RESET}"
 echo -e "${GREEN}Tip: Reattach manually with 'tmux -S $TMUX_SOCKET attach-session -t <session-name>' if needed.${RESET}"
 echo ""
 
