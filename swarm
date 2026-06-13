@@ -13,11 +13,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ ! -d "$SCRIPT_DIR/swarmforge/scripts" ]]; then
+if [[ ! -d "$SCRIPT_DIR/swarmforge/scripts" || ! -d "$SCRIPT_DIR/swarmforge/scripts/shared-articles" ]]; then
   TMP_DIR="$(mktemp -d)"
   mkdir -p "$SCRIPT_DIR/swarmforge"
   curl -L "$ARCHIVE_URL" | tar -xz --strip-components=1 -C "$TMP_DIR"
-  cp -R "$TMP_DIR/swarmforge/scripts" "$SCRIPT_DIR/swarmforge/scripts"
+  if [[ ! -d "$SCRIPT_DIR/swarmforge/scripts" ]]; then
+    cp -R "$TMP_DIR/swarmforge/scripts" "$SCRIPT_DIR/swarmforge/scripts"
+  fi
+  if [[ -d "$TMP_DIR/swarmforge/constitution/articles" ]]; then
+    mkdir -p "$SCRIPT_DIR/swarmforge/scripts/shared-articles"
+    cp -R "$TMP_DIR/swarmforge/constitution/articles/." "$SCRIPT_DIR/swarmforge/scripts/shared-articles/"
+  fi
 fi
 
 exec "$SCRIPT_DIR/swarmforge/scripts/swarmforge.sh" "$@"
