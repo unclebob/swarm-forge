@@ -2,7 +2,7 @@
 
 ## Project Shape
 - This project is configured for SwarmForge with two Codex-backed agents: coder and reviewer.
-- Project language: infer from the target project before selecting test, CRAP, DRY, and mutation tools.
+- Project language: Babashka.
 
 ## Local Configuration
 - Preserve project-local SwarmForge configuration under `swarmforge/`.
