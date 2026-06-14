@@ -8,19 +8,17 @@
 - This startup notification is only a presence signal; it does not replace any role-specific handoff rule.
 
 ## Logbook
-- Maintain the tracked root `logbook.jsonl` file for every handoff received or sent.
-- Keep `logbook.jsonl` as append-only JSON Lines. Each line is one complete JSON object; never rewrite, reformat, sort, summarize, or merge existing entries.
+- Handoff logbooks are runtime state under `.swarmforge/logbook.jsonl`.
+- Keep `.swarmforge/logbook.jsonl` as append-only JSON Lines. Each line is one complete JSON object; never rewrite, reformat, sort, summarize, or merge existing entries.
 - Each log entry must include `timestamp`, `direction`, `message`, and `note` fields. Use `direction` values `received`, `sent`, or `queued`.
-- Use `.swarmforge/notify/request` plus `swarm-handoff` to append normal sent, received, queued, and resend-request entries to `logbook.jsonl`.
+- Use `.swarmforge/notify/request` plus `swarm-handoff` to append normal sent, received, queued, and resend-request entries to `.swarmforge/logbook.jsonl`.
 - Run `swarm-handoff` with no environment-variable prefix. Do not run `SWARMFORGE_ROLE=<role> swarm-handoff`; startup already sets `SWARMFORGE_ROLE`, and the handoff command must stay stable.
-- Do not hand-edit handoff logbook entries unless a helper script fails and explicit user direction says to repair the logbook manually.
-- If a merge conflict occurs in `logbook.jsonl`, keep all complete JSON lines from both sides. Preserve message text exactly; order chronologically when obvious, otherwise keep both groups intact.
-- Commit `logbook.jsonl` updates with the next substantive role-owned commit or outgoing handoff commit. Make a logbook-only commit only when no other work will be committed for that handoff, such as a queued handoff that requires no role-specific work.
+- Do not hand-edit, merge, stage, or commit handoff logbooks unless explicit user direction says to repair runtime state manually.
 
 ## Handoff Format
 - For every outgoing handoff, write only the role-specific handoff body to `./tmp/<target-role>-handoff.txt`.
 - To send that handoff, write `.swarmforge/notify/request` with `command: send`, `target: <target-role>`, and `file: ./tmp/<target-role>-handoff.txt`, then run `swarm-handoff` with no arguments.
-- Before sending a handoff, commit all role-owned work and any required `logbook.jsonl` updates. Do not make another commit until `swarm-handoff` completes successfully.
+- Before sending a handoff, commit all role-owned work. Do not make another commit until `swarm-handoff` completes successfully.
 - The send helper wraps the body with `message type`, `message id`, `sender role`, `target role`, `message sequence`, `message priority`, `branch name`, and 10-character `commit hash` fields, archives the sent message, appends the sent logbook entry, and sends the message.
 - Add `priority: NN` to `.swarmforge/notify/request` only when a role rule or explicit user instruction requires it; normal handoffs default to priority `50`.
 - Treat the generated `branch name` and `commit hash` fields as the authoritative state for the receiver to merge; do not type branch names or commit hashes into the handoff body.
