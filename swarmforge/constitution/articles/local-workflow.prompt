@@ -1,0 +1,4 @@
+# Local Workflow Rules
+
+## QA Handoffs
+- A QA handoff does not interrupt current work. The receive helper queues accepted QA handoffs by priority. When processing an accepted QA queue file, merge the sender branch state identified by the protocol `branch name` and `commit hash` fields, commit the logbook update if needed, and do not apply role-specific work to that QA handoff. Then continue normal queue processing.
