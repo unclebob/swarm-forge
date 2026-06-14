@@ -7,18 +7,14 @@
 - This startup notification is only a presence signal; it does not replace any role-specific handoff rule.
 
 ## Logbook
-- Handoff logbooks are runtime state under `.swarmforge/logbook.jsonl`.
-- Keep `.swarmforge/logbook.jsonl` as append-only JSON Lines. Each line is one complete JSON object; never rewrite, reformat, sort, summarize, or merge existing entries.
-- Each log entry must include `timestamp`, `direction`, `message`, and `note` fields. Use `direction` values `received`, `sent`, or `queued`.
-- Use `.swarmforge/notify/request` plus `swarm-handoff` to append normal sent, received, queued, and resend-request entries to `.swarmforge/logbook.jsonl`.
-- Run `swarm-handoff` with no environment-variable prefix. Do not run `SWARMFORGE_ROLE=<role> swarm-handoff`; startup already sets `SWARMFORGE_ROLE`, and the handoff command must stay stable.
+- `swarm-handoff` maintains `.swarmforge/logbook.jsonl` as runtime state.
 - Do not hand-edit, merge, stage, or commit handoff logbooks unless explicit user direction says to repair runtime state manually.
 
 ## Handoff Format
 - For every outgoing handoff, write only the role-specific handoff body to `./tmp/<target-role>-handoff.txt`.
 - To send that handoff, write `.swarmforge/notify/request` with `command: send`, `target: <target-role>`, and `file: ./tmp/<target-role>-handoff.txt`, then run `swarm-handoff` with no arguments.
 - Before sending a handoff, commit all role-owned work. Do not make another commit until `swarm-handoff` completes successfully.
-- The send helper wraps the body with `message type`, `message id`, `sender role`, `target role`, `message sequence`, `message priority`, `branch name`, and 10-character `commit hash` fields, archives the sent message, appends the sent logbook entry, and sends the message.
+- The send helper wraps the body with `message type`, `message id`, `sender role`, `target role`, `message sequence`, `message priority`, `branch name`, and 10-character `commit hash` fields, archives the sent message, and sends the message.
 - Add `priority: NN` to `.swarmforge/notify/request` only when a role rule or explicit user instruction requires it; normal handoffs default to priority `50`.
 - Treat the generated `branch name` and `commit hash` fields as the authoritative state for the receiver to merge; do not type branch names or commit hashes into the handoff body.
 - `message id` values have this form: `YYYYMMDD-HHMMSS-XXXXXX`, where `XXXXXX` is a six-character random lowercase hexadecimal suffix. Message type, sender, target, and sequence are recorded in separate fields.
