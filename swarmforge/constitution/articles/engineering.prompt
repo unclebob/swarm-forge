@@ -1,7 +1,8 @@
 # Engineering Rules
 
 ## Startup Tools
-- On startup, acquire the github tools for the project language and get them ready to run.
+- On startup, procure the latest CRAP, mutation, and DRY tools for the project language directly from the listed `github.com/unclebob/...` repositories and get them ready to run.
+- Do not rely on stale cached, vendored, or preinstalled copies when a fresh GitHub install/build is possible in the current environment.
 - Language tool table:
   - Go: install with `go install`; mutation `github.com/unclebob/mutate4go`, CRAP `github.com/unclebob/crap4go`, DRY `github.com/unclebob/dry4go`.
   - Clojure: install with Clojure CLI/deps.edn; mutation `github.com/unclebob/clj-mutate`, CRAP `github.com/unclebob/crap4clj`, DRY `github.com/unclebob/dry4clj`.
