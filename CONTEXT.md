@@ -43,3 +43,7 @@ _Avoid_: rejection, escalation, bounce, defect back-routing
 **QA holdout**:
 The end-to-end QA suite kept physically out of reach of every role that shapes the implementation, so it stays a blind test. The harness sparse-checks-out the suite's pinned path from each role worktree except the specifier's (which authors it) and QA's (which runs it) — present in the commit, absent from disk. Distinct from upstream's prompt-level "ignore it," which leaves the files in the coder's worktree. Covers only the end-to-end QA suite; the Gherkin acceptance tests stay visible because the coder builds and runs them. (Upstream walls it by instruction only.)
 _Avoid_: hidden tests, secret suite, test isolation
+
+**Spec header**:
+The structured block of comment sections the specifier fills in at the top of every feature file, above the Gherkin scenarios — the spec-authoring layer that states what the scenarios cannot: contract, constraints, sequencing, NFRs, side effects, scope (and, six-pack only, _UX Intent_). The scenarios are the contract by example; the spec header is the contract's surrounding intent. Every section is addressed; several default to `none` (a deliberate answer). Comments only, so the Gherkin parser ignores them. (Upstream feature files are pure Gherkin with no header.)
+_Avoid_: preamble, comment block, feature description
