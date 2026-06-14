@@ -13,5 +13,5 @@ The startup "I'm awake" message each role sends to the specifier. Informational 
 _Avoid_: awake handoff, ready handoff
 
 **Delivery sequence**:
-The fork's Stop-hook steps that start a work handoff on an idle receiver: `/clear` → re-inject the role bundle (`codex`/`grok` only) → send the task message. Runs only for work handoffs, never for presence pings. (Upstream instead types the message straight into the terminal with no clear.)
+The steps that start a work handoff on a receiver: `/clear` → re-inject the role bundle → send the task message. Runs for work handoffs only, never for presence pings. Delivered immediately if the receiver is idle, or by its Stop hook when it next stops if busy. (Upstream instead types the message straight into the terminal with no clear.)
 _Avoid_: inject, dispatch
