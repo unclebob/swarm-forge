@@ -1,8 +1,8 @@
 # Project Rules
 
 ## Project Shape
-- This project is configured for SwarmForge with four Codex-backed agents: specifier, coder, refactorer, and architect.
-- Project language: Babashka.
+- This project is configured for SwarmForge with two Codex-backed agents: coder and reviewer.
+- Project language: infer from the target project before selecting test, CRAP, DRY, and mutation tools.
 
 ## Local Configuration
 - Preserve project-local SwarmForge configuration under `swarmforge/`.
@@ -10,6 +10,7 @@
 
 ## Handoffs
 - Prefer terse, explicit handoffs that report state and request role-appropriate review. Do not include verifications or sender process narrative.
+- The normal loop is coder -> reviewer -> coder until reviewer is satisfied.
 
 ## Ownership
 - Do not change another role's prompt or workflow ownership without explicit user direction.

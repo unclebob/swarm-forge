@@ -1,0 +1,50 @@
+# Handoff Rules
+
+## Startup Notification
+- If your role is `reviewer`, after reading the constitution and your role prompt at startup, send an awake notification to `coder`.
+- If your role is `coder`, do not send a startup awake notification.
+- To send the reviewer awake notification, write exactly `I'm awake` to `./tmp/coder-awake.txt`.
+- Write `.swarmforge/notify/request` with `command: send`, `target: coder`, and `file: ./tmp/coder-awake.txt`, then run `notify-agent.sh` with no arguments.
+- This startup notification is only a presence signal; it does not replace any role-specific handoff rule.
+
+## Logbook
+- Maintain the tracked root `logbook.jsonl` file for every handoff received or sent.
+- Keep `logbook.jsonl` as append-only JSON Lines. Each line is one complete JSON object; never rewrite, reformat, sort, summarize, or merge existing entries.
+- Each log entry must include `timestamp`, `direction`, `message`, and `note` fields. Use `direction` values `received`, `sent`, or `queued`.
+- Use `.swarmforge/notify/request` plus `notify-agent.sh` to append normal sent, received, queued, and resend-request entries to `logbook.jsonl`.
+- Run `notify-agent.sh` with no environment-variable prefix. Do not run `SWARMFORGE_ROLE=<role> notify-agent.sh`; startup already sets `SWARMFORGE_ROLE`, and the handoff command must stay stable.
+- Do not hand-edit handoff logbook entries unless a helper script fails and explicit user direction says to repair the logbook manually.
+- If a merge conflict occurs in `logbook.jsonl`, keep all complete JSON lines from both sides. Preserve message text exactly; order chronologically when obvious, otherwise keep both groups intact.
+- Commit `logbook.jsonl` updates with the next substantive role-owned commit or outgoing handoff commit. Make a logbook-only commit only when no other work will be committed for that handoff, such as a queued handoff that requires no role-specific work.
+
+## Handoff Format
+- For every outgoing handoff, write only the role-specific handoff body to `./tmp/<target-role>-handoff.txt`.
+- To send that handoff, write `.swarmforge/notify/request` with `command: send`, `target: <target-role>`, and `file: ./tmp/<target-role>-handoff.txt`, then run `notify-agent.sh` with no arguments.
+- Before sending a handoff, commit all role-owned work and any required `logbook.jsonl` updates. Do not make another commit until `notify-agent.sh` completes successfully.
+- The send helper wraps the body with `message type`, `message id`, `sender role`, `target role`, `message sequence`, `message priority`, `branch name`, and 10-character `commit hash` fields, archives the sent message, appends the sent logbook entry, and sends the message.
+- Add `priority: NN` to `.swarmforge/notify/request` only when a role rule or explicit user instruction requires it; normal handoffs default to priority `50`.
+- Treat the generated `branch name` and `commit hash` fields as the authoritative state for the receiver to merge; do not type branch names or commit hashes into the handoff body.
+- `message id` values have this form: `YYYYMMDD-HHMMSS-XXXXXX`, where `XXXXXX` is a six-character random lowercase hexadecimal suffix. Message type, sender, target, and sequence are recorded in separate fields.
+- Start every handoff body with: `Re-read your role and constitution.`
+- Include a short stable work name for the feature or review cycle.
+- Handoff bodies must report only essential state, not prescribe process.
+- Do not tell the receiving role how to do its job, repeat your process, or ask it to continue sender-owned responsibilities. The normal request is: `Apply your own role rules to this state.`
+
+## Receiving Handoffs
+- When receiving any handoff or resend request, save the complete incoming message to `./tmp/incoming-handoff.txt` or another local file.
+- To receive the saved message, write `.swarmforge/notify/request` with `command: receive` and `file: <saved-message-file>`, then run `notify-agent.sh` with no arguments.
+- The receive helper ignores any leading terminal noise before the first valid protocol header, validates sequence order, archives the normalized message, and queues accepted handoffs under `.swarmforge/handoffs/queue/accepted/`.
+- Do not process the saved incoming file directly. Process only accepted queue files created by the receive helper.
+- If the receive helper reports `DO NOT PROCESS`, do not merge, apply, or otherwise act on that handoff; the helper has detected an out-of-order, duplicate, or stale message and has requested any required resend.
+- If a handoff sequence is greater than one more than the last processed sequence for that sender-target stream, the receive helper sends a `resend-request` for the missing sequence range including the out-of-order handoff itself.
+- If a `resend-request` is received, the receive helper resends the archived requested messages and exits without role-specific work.
+- When processing an accepted handoff from the queue, merge the sender branch state identified by the protocol `branch name` and `commit hash` fields into your assigned branch before applying your own role rules.
+- When receiving a handoff, ignore sender process narrative and decide next actions only from your own role prompt, the constitution, and the current project state.
+
+## Queued Messages
+- Accepted handoffs are queued only by the receive helper under `.swarmforge/handoffs/queue/accepted/`.
+- Queue file names begin with the sender-specified two-digit priority, then a timestamp, stream, and sequence. Process accepted queue files in sorted filename order.
+- Do not receive accepted queue files again. They have already passed receive validation.
+- If one or more accepted handoffs are queued while you are busy, finish the current job before acting on queued messages.
+- After finishing the accepted queue file, write `.swarmforge/notify/request` with `command: complete` and `file: <accepted-queue-file>`, then run `notify-agent.sh` with no arguments.
+- Do not delete accepted queue files directly.

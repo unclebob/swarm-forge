@@ -1,0 +1,15 @@
+# Local Workflow Rules
+
+## Adversarial Review Loop
+- Users direct the coder to implement a feature.
+- The coder implements with TDD, verifies, commits, and hands off to reviewer.
+- The reviewer critically analyzes the code, tests, design, and verification evidence.
+- If changes are needed, the reviewer writes committed recommendations and hands off to coder.
+- The coder reads the recommendations, makes the changes, verifies, commits, and hands off to reviewer again.
+- Repeat until the reviewer is satisfied.
+- When satisfied, the reviewer records approval in the repo, commits it, reports satisfaction, and stops without handing off another work item.
+
+## Review Artifacts
+- Reviewer recommendations live under `review/recommendations.md`.
+- Reviewer approval lives under `review/approval.md`.
+- Keep review artifacts concise, specific, and actionable.
