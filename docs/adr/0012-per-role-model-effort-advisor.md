@@ -28,12 +28,6 @@ window architect  codex  architect  model=o3
 
 **Per-role granularity, not per-backend.** Two `claude` roles can run different models; a global per-backend setting would throw away the value of the role abstraction. **No pre-populated values** ship in the runnable configs — those express topology (roles + worktrees), not opinions about model cost. The feature is fully opt-in: operators add keys only to the lines they care about.
 
-## Considered options
-
-- **Per-backend global settings** — rejected: collapses the role distinction; you could not give the architect a stronger model than the coder when both run the same backend.
-- **A separate config block / file for model settings** — rejected: splits a role's definition across two places; the inline tail keeps everything about a role on one line.
-- **Pre-populate sensible defaults in the runnable configs** — rejected: bakes cost/quality opinions into topology files and creates drift to maintain; opt-in keeps the configs neutral.
-
 ## Pending implementation
 
 - `main`: extend `parse_config` in `swarmforge.sh` to accept ≥4 fields and read the `key=value` tail into per-role maps; extend `launch_role` to append the mapped flags per backend when set. (Script lives on `main`; the conf grammar is exercised there.)

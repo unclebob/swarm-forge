@@ -10,12 +10,7 @@ The trigger is not only a defect. Any finding that an earlier stage's work must 
 
 **Only structural rework routes back.** It routes back when resolving it means re-opening an earlier stage's job — an ambiguous or missing specification, a weak or missing acceptance test, a design that can't hold the behavior. The stage that owns that work gets it back and corrects the root cause. **Local** work — anything the finder can resolve without re-opening an earlier stage's decision — stays with the finder. Routing a contained, local change backward only adds a round trip and teaches no one.
 
-**Rework routes back at most once.** If it comes back still unresolved, the finder resolves it in place and flags it. This caps the cost and stops two stages volleying the same item indefinitely.
-
-## Considered options
-
-- **Route every finding back to its origin** — rejected: the line ping-pongs and a trivial local change becomes a round trip that teaches nothing; the cost is paid for findings that don't carry a lesson.
-- **Keep upstream's fix-in-place** — rejected: rework accumulates as downstream patches and the stage that caused it is never corrected, so the same class of problem recurs.
+**Two caps, at two scopes.** A *single finding* routes back to its cause **at most once**: if it returns still unresolved, the finder resolves it in place and flags it, so two stages never volley the same item. Independently, a *feature* tolerates **at most three back-route cycles total** (depth cap N=3), tracked by a routing count carried in the handoff trail; after the third the routing role stops and asks the user rather than looping. The first cap stops ping-pong on one issue; the second stops a feature from churning through endless distinct bounces. (The role prompts — ux-engineer, integrator — carry the N=3 feature-level cap.)
 
 ## Pending implementation
 

@@ -12,11 +12,6 @@ Upstream QA verifies that the accepted specification is met and fixes what fails
 
 **Findings route back; QA owns the attack, not the routing.** A structural weakness QA surfaces routes back to its cause (a weak acceptance test or an ambiguous spec → the specifier); a local defect QA fixes in place — per the back-routing decision. Refuting QA is the engine that *generates* structural findings; it needs no routing rule of its own.
 
-## Considered options
-
-- **Keep upstream's confirm posture** — rejected: a confirming QA passes test theater (green suites that assert nothing); the defects that survive an otherwise-complete pipeline are exactly the ones a checklist confirms.
-- **Refute beyond the spec** — rejected: unbounded; QA becomes a fuzzer that blocks the line on unspecified behavior. Unspecified gaps route back to the specifier instead.
-
 ## Pending implementation
 
 - Prompt change on `six-pack`.

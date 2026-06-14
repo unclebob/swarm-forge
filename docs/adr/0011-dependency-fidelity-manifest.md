@@ -14,12 +14,6 @@ A scenario that rests on an emulated dependency the emulator does not actually i
 
 **The specifier owns the manifest.** Before writing scenarios it reads the manifest; if a feature touches an external system not yet declared, it stops, proposes name/tier/implementation/gaps to the user, and waits for approval before adding the entry — tier assignment is an architectural decision the user must own, mirroring the other specifier approval gates.
 
-## Considered options
-
-- **Free-form mocking guidance in a role prompt** — rejected: gaps stay prose and un-actionable, so nothing can mechanically *refuse* a scenario built on one.
-- **Put dependency data in `project.prompt`** — rejected: mixes volatile project-specific data into the shared project constitution; a separate auto-resolved file keeps it isolated.
-- **No tiers, just "mock externals"** — rejected: collapses the real distinction between owned infra run for real (tier 1) and wire-stubbed third parties (tier 3), and loses the fidelity-preference order that keeps twins honest.
-
 ## Pending implementation
 
 - Add `swarmforge/dependency-manifest.prompt` (tier definitions inline, body `(none)`) on `four-pack` and `six-pack`.

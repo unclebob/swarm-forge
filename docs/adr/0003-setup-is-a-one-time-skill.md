@@ -14,11 +14,6 @@ Adapting a project to the swarm — installing the project's language quality to
 
 **Why replace rather than overlay.** Setup is an explicit one-time step; the run path stays pure "start the agents." The accepted cost is that the swarm no longer self-installs project tooling on first run — the operator runs the setup skill once before the first `./swarm`. Any setup step this moves out of the run path is named and documented so the divergence stays auditable.
 
-## Considered options
-
-- **Add setup as functions inside `swarmforge.sh`** — rejected: edits an upstream-tracked file (a permanent merge-conflict surface, against ADR 0001's additive rule) and a deterministic script cannot adapt to the project's stack.
-- **Overlay — skill adds the fork's extras while execution keeps installing** — rejected: leaves setup split across two places and keeps the run path doing setup work, defeating the purpose.
-
 ## Pending implementation
 
 - The skill itself: stack detection, the exact tooling/permissions/pins it writes, how it is shipped inside the install, and the "swarm-ready" marker `./swarm` checks before launching.

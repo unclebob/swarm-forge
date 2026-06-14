@@ -16,12 +16,6 @@ Upstream holds the end-to-end QA suite back from the coder by prompt instruction
 
 **Scope boundary: only the end-to-end QA suite.** The Gherkin acceptance tests and the acceptance pipeline stay fully visible — the coder builds and runs them. The holdout is the specifier's end-to-end QA suite alone.
 
-## Considered options
-
-- **Keep upstream's prompt-level "ignore it" (detection-only)** — rejected: an implementer that can read the holdout can fit to it; the reference doc calls instructional holdouts a leak that must be closed architecturally. Mutation + refuting QA detect a weak suite but do not stop the implementation being shaped to the visible one.
-- **Harness deletes the QA path from the worktree** — rejected: the role's commit stages the deletion and the suite disappears downstream for QA.
-- **Specifier commits the QA suite to a separate QA-only branch** — rejected: more handoff-graph complexity (QA must merge code + QA branch) for no protection sparse-checkout doesn't already give.
-
 ## Pending implementation
 
 - Add the sparse-checkout exclusion to the worktree-prep step (`six-pack`/scripts), keyed to skip the specifier(master) and QA worktrees.

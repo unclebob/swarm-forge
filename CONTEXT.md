@@ -37,7 +37,7 @@ QA's posture in the fork: assume the build does not meet the spec and the accept
 _Avoid_: verification, acceptance check, confirm
 
 **Back-routing**:
-Sending rework back to the stage whose decision it exposes as flawed, instead of resolving it where it was found. The trigger is any finding that an earlier stage's work must change — a bug, a refactor blocked by a bad earlier decision, or a design/spec revision. Applies only to _structural_ rework (re-opening an earlier stage's job: an ambiguous/missing spec, a weak/missing test, a design that can't hold the behavior); _local_ work the finder can resolve without re-opening an earlier decision stays with the finder. Routes back at most once. (Upstream fixes everything in place.)
+Sending rework back to the stage whose decision it exposes as flawed, instead of resolving it where it was found. The trigger is any finding that an earlier stage's work must change — a bug, a refactor blocked by a bad earlier decision, or a design/spec revision. Applies only to _structural_ rework (re-opening an earlier stage's job: an ambiguous/missing spec, a weak/missing test, a design that can't hold the behavior); _local_ work the finder can resolve without re-opening an earlier decision stays with the finder. Two caps: a single finding bounces back at most once, and a feature tolerates at most three back-route cycles total (N=3, tracked by a routing count in the handoff) before the role stops and asks the user. (Upstream fixes everything in place.)
 _Avoid_: rejection, escalation, bounce, defect back-routing
 
 **QA holdout**:
@@ -55,6 +55,10 @@ _Avoid_: UI test, e2e harness, driver
 **Baseline scenario**:
 The permanent idle/no-op scenario committed alongside a surface's flow scenarios, asserting the system is stable when nothing is happening — TUI: no input, identical consecutive captures, zero scrollback growth; web: idle load with no console errors; headless: a no-op event changes no state. It catches idle-state defects that flow scenarios never observe because flow scenarios only assert while the user is acting.
 _Avoid_: smoke test, idle test, sanity check
+
+**Observation harness**:
+The project `observation-harness/` directory holding the committed, re-runnable surface scenarios — the per-surface _baseline scenario_ plus one set per verified flow — that form the permanent regression record. Authored by the live-verification role (the _UX Engineer_ on six-pack) using the _surface harness_ tool, and re-executed by QA before final verification; a user-facing surface with no scenarios is a finding that routes back. (Upstream has no such artifact.)
+_Avoid_: e2e folder, regression dir
 
 **Fidelity manifest**:
 The constitution sub-file (`dependency-manifest.prompt`) declaring every dependency beyond the system itself by _dependency tier_, each as `name: tier N; implementation; gaps: <description or none>`. A declared gap is binding: the specifier and QA refuse to write or accept any scenario that rests on it, so a known emulator limitation can never pass as covered behavior. Specifier-owned; defaults to `(none)`.

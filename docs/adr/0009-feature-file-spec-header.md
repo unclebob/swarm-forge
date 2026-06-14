@@ -14,12 +14,6 @@ The header is the **spec-authoring layer** the reference verification loop puts 
 
 **Address every section; do not fill every section.** `SEQUENCING`, `SIDE EFFECTS`, and (six-pack) `UX INTENT` default to `none`. `none` is a deliberate answer, not a skipped one — and for `UX INTENT`, `none` is the signal that tells the UX Engineer to pass through (ADR 0007). The sections are comments (`#`), so the Gherkin parser ignores them and the acceptance pipeline is unaffected.
 
-## Considered options
-
-- **Free-form prose header** (what melech-mini-apps feature files actually do) — rejected: no guarantee that scope, NFR, or side effects ever get stated; relies entirely on specifier memory. The structured `Ask:`/`Format:` turns each concern into a forced question.
-- **No header (stay pure Gherkin like upstream)** — rejected: scope exclusions, assumptions, and NFRs stay implicit, and 0007's UX Intent would have no documented home in the artifact.
-- **Design a fork-specific minimal header** — rejected: the template already exists, is internally coherent, and already integrates the fork's other decisions (UX Intent, side-effects-to-observe for refuting QA). Re-deriving it adds nothing.
-
 ## Pending implementation
 
 - Template already drafted on `four-pack` (7 sections) and `six-pack` (8, with `UX INTENT`); land both.

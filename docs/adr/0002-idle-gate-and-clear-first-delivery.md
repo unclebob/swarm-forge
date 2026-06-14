@@ -21,11 +21,6 @@ The marker is set *busy* when a delivery starts and *idle* when the Stop hook fi
 
 Ready is implicit (idle + empty queue = ready). Upstream's startup "I'm awake" ping is kept only as an operator-visible **presence** signal — stamped a distinct `presence` type and excluded from the clear-first path, so the Stop hook never clears for it.
 
-## Considered options
-
-- **Rely on upstream's type-into-terminal model and skip `/clear`** — rejected: loses the required per-task session reset.
-- **Orchestrator-in-code** (`docs/proposals/2026-06-11-factory-line-refactor.md`) — deferred; a re-architecture, not a sync move.
-
 ## Pending implementation
 
 - `codex`/`grok` hook-based delivery (Claude Code first). The current `six-pack` `swarmforge.conf` runs all six roles on `codex`, so until that is built — or those roles move to `claude` — clear-first delivery applies only to `claude` roles.
