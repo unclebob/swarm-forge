@@ -1,9 +1,6 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/handoff-lib.sh"
-
 usage() {
   echo "Usage: complete-handoff.sh --file <accepted-queue-file>" >&2
 }
@@ -48,15 +45,6 @@ target="$COMPLETED_DIR/$base"
 if [[ -e "$target" ]]; then
   target="$COMPLETED_DIR/$(date '+%Y%m%d-%H%M%S')-$base"
 fi
-
-message="$(< "$QUEUE_FILE")"
-msg_hash="$(handoff_field "commit hash" "$QUEUE_FILE" 2>/dev/null || true)"
-msg_sender="$(handoff_field "sender role" "$QUEUE_FILE" 2>/dev/null || true)"
-printf '{"timestamp":"%s","direction":"executing","message":"%s","hash":"%s","sender":"%s"}\n' \
-  "$(handoff_json_escape "$(handoff_timestamp)")" \
-  "$(handoff_json_escape "$message")" \
-  "$(handoff_json_escape "$msg_hash")" \
-  "$(handoff_json_escape "$msg_sender")" >> "$(handoff_logbook_file)"
 
 mv "$QUEUE_FILE" "$target"
 echo "COMPLETED $target"

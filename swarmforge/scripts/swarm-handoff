@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/handoff-lib.sh"
 
 usage() {
   echo "Usage: swarm-handoff" >&2
@@ -126,12 +127,111 @@ run_request_file() {
   exit "$exit_status"
 }
 
+resolve_session() {
+  local target="${1:l}"
+  local sessions_file="$2"
+  local index role session display agent
+
+  while IFS=$'\t' read -r index role session display agent; do
+    if [[ "$target" == "${index:l}" || "$target" == "${role:l}" ]]; then
+      echo "$session"
+      return 0
+    fi
+  done < "$sessions_file"
+
+  return 1
+}
+
+# _do_deliver — clear-first delivery for a specific target.
+# Always sends /clear, re-injects the bundle, then sends the message.
+_do_deliver() {
+  local target="$1"
+  local message_file="$2"
+  local project_dir="$3"
+  local sessions_file="$4"
+  local tmux_socket_file="$5"
+  local tmux_env_file="$6"
+
+  local target_session
+  target_session=$(resolve_session "$target" "$sessions_file") || {
+    echo "Unknown target: $target" >&2
+    return 1
+  }
+
+  if [[ ! -f "$message_file" ]]; then
+    echo "Message file not found: $message_file" >&2
+    return 1
+  fi
+  local message
+  message="$(< "$message_file")"
+
+  if [[ -z "${TMUX:-}" && -f "$tmux_env_file" ]]; then
+    TMUX="$(< "$tmux_env_file")"
+    export TMUX
+  fi
+
+  local bundle_file="$project_dir/.swarmforge/prompts/${target}.md"
+
+  local -a tmux_cmd=()
+  if [[ -n "${TMUX:-}" ]]; then
+    tmux_cmd=(tmux send-keys -t "$target_session")
+  else
+    local socket
+    socket="$(< "$tmux_socket_file")"
+    tmux_cmd=(tmux -S "$socket" send-keys -t "$target_session")
+  fi
+
+  # Clear
+  "${tmux_cmd[@]}" -l -- '/clear'
+  sleep 0.15
+  "${tmux_cmd[@]}" C-m
+  sleep 0.05
+  "${tmux_cmd[@]}" C-j
+  sleep 1
+
+  # Re-inject bundle if present
+  if [[ -f "$bundle_file" ]]; then
+    "${tmux_cmd[@]}" -l -- "$(< "$bundle_file")"
+    sleep 0.15
+    "${tmux_cmd[@]}" C-m
+    sleep 0.05
+    "${tmux_cmd[@]}" C-j
+    sleep 0.5
+  fi
+
+  # Send protocol message
+  "${tmux_cmd[@]}" -l -- "$message"
+  sleep 0.15
+  "${tmux_cmd[@]}" C-m
+  sleep 0.05
+  "${tmux_cmd[@]}" C-j
+}
+
 if [[ $# -eq 0 ]]; then
   run_request_file
 fi
 
 if [[ $# -gt 0 ]]; then
   case "$1" in
+    deliver)
+      shift
+      if [[ $# -ne 3 || "${2:-}" != "--file" ]]; then
+        usage
+        exit 1
+      fi
+      TARGET="$1"
+      MESSAGE_FILE="$3"
+      PROJECT_DIR="$(find_project_dir)"
+      SESSIONS_FILE="$PROJECT_DIR/.swarmforge/sessions.tsv"
+      TMUX_SOCKET_FILE="$PROJECT_DIR/.swarmforge/tmux-socket"
+      TMUX_ENV_FILE="$PROJECT_DIR/.swarmforge/tmux-env"
+      if [[ ! -f "$SESSIONS_FILE" ]]; then
+        echo "Sessions file not found: $SESSIONS_FILE" >&2
+        exit 1
+      fi
+      _do_deliver "$TARGET" "$MESSAGE_FILE" "$PROJECT_DIR" "$SESSIONS_FILE" "$TMUX_SOCKET_FILE" "$TMUX_ENV_FILE"
+      exit 0
+      ;;
     send)
       shift
       exec "$SCRIPT_DIR/send-handoff.sh" "$@"
@@ -169,21 +269,7 @@ if [[ ! -f "$SESSIONS_FILE" ]]; then
   exit 1
 fi
 
-resolve_session() {
-  local target="${1:l}"
-  local index role session display agent
-
-  while IFS=$'\t' read -r index role session display agent; do
-    if [[ "$target" == "${index:l}" || "$target" == "${role:l}" ]]; then
-      echo "$session"
-      return 0
-    fi
-  done < "$SESSIONS_FILE"
-
-  return 1
-}
-
-TARGET_SESSION=$(resolve_session "$TARGET") || {
+TARGET_SESSION=$(resolve_session "$TARGET" "$SESSIONS_FILE") || {
   echo "Unknown target: $TARGET" >&2
   exit 1
 }
@@ -194,27 +280,18 @@ if [[ ! -f "$MESSAGE_FILE" ]]; then
 fi
 MESSAGE="$(< "$MESSAGE_FILE")"
 
-if [[ -z "${TMUX:-}" && -f "$TMUX_ENV_FILE" ]]; then
-  TMUX="$(< "$TMUX_ENV_FILE")"
-  export TMUX
+# Queue the message in pending/
+PENDING_DIR="$(handoff_pending_dir "$PROJECT_DIR" "$TARGET")"
+mkdir -p "$PENDING_DIR"
+PENDING_FILE="$PENDING_DIR/$(handoff_id_timestamp)-pending.txt"
+printf '%s' "$MESSAGE" > "$PENDING_FILE"
+
+# Check busy marker; if busy, queue will be drained by Stop hook
+BUSY_FILE="$(handoff_busy_file "$PROJECT_DIR" "$TARGET")"
+if ! ( set -C; > "$BUSY_FILE" ) 2>/dev/null; then
+  exit 0
 fi
 
-if [[ -n "${TMUX:-}" ]]; then
-  tmux send-keys -t "$TARGET_SESSION" -l -- "$MESSAGE"
-  sleep 0.15
-  tmux send-keys -t "$TARGET_SESSION" C-m
-  sleep 0.05
-  tmux send-keys -t "$TARGET_SESSION" C-j
-else
-  if [[ ! -f "$TMUX_SOCKET_FILE" ]]; then
-    echo "Tmux socket file not found: $TMUX_SOCKET_FILE" >&2
-    exit 1
-  fi
+_do_deliver "$TARGET" "$MESSAGE_FILE" "$PROJECT_DIR" "$SESSIONS_FILE" "$TMUX_SOCKET_FILE" "$TMUX_ENV_FILE"
 
-  TMUX_SOCKET="$(< "$TMUX_SOCKET_FILE")"
-  tmux -S "$TMUX_SOCKET" send-keys -t "$TARGET_SESSION" -l -- "$MESSAGE"
-  sleep 0.15
-  tmux -S "$TMUX_SOCKET" send-keys -t "$TARGET_SESSION" C-m
-  sleep 0.05
-  tmux -S "$TMUX_SOCKET" send-keys -t "$TARGET_SESSION" C-j
-fi
+rm -f "$PENDING_FILE"

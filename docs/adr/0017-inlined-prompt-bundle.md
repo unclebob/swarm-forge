@@ -8,13 +8,8 @@ Upstream builds a role's launch context by concatenating its constitution and ro
 
 **The bundle is the unit of delivery, not just of launch.** Clear-first delivery (ADR 0002) wipes the session with `/clear` and then *re-injects the role bundle* before every task. That re-injection needs a single, complete, deduplicated context to re-send — which is exactly what the resolver produces. A naive recursive concatenation is fine to build once at launch but is the wrong shape to re-send reliably on every handoff.
 
-**It is the prerequisite for knowledge injection.** ADR 0014 appends the project's `AGENTS.md` and the role's `.agents/` file into this same envelope. There is nowhere to append them, and no well-defined boundary to append them at, until the context is a structured bundle rather than flat concatenated text. 0014 and the session-restart `executing` fields (ADR 0002) both build on top of the bundle.
+**It is the prerequisite for knowledge injection.** ADR 0014 appends the project's `AGENTS.md` and the role's `.agents/` file into this same envelope. There is nowhere to append them, and no well-defined boundary to append them at, until the context is a structured bundle rather than flat concatenated text. 0014 builds on top of the bundle.
 
 **Why an XML envelope.** Explicit `<file>` boundaries let the agent tell its constitution from its role prompt from its promoted knowledge, instead of inferring breaks in a wall of concatenated text; and the BFS dedup keeps a cross-referenced constitution (articles, the dependency manifest) from appearing two or three times.
 
-This divergence is taken in its **minimal translated form**: the resolver and envelope are ported onto upstream's current tmux delivery harness, not lifted from the pre-reset implementation where they were entangled with the dropped cmux backend.
-
-## Pending implementation
-
-- `main`: replace the recursive-read heredoc in `write_agent_instruction_file` with `resolve_prompt_bundle` (BFS, dedup by resolved path) emitting the `<swarmforge_agent_context>` envelope; wire the resolved bundle into upstream's delivery path. Source: `backup/main-pre-reset:swarmforge/scripts/swarmforge.sh` — re-base onto current upstream, do not copy.
-- Prerequisite for ADR 0014 (`.agents` injection) and the ADR 0002 `executing`-field recovery; both re-base on the bundle.
+This divergence is taken in its **minimal translated form**: the resolver and envelope are ported onto upstream's current tmux delivery harness.

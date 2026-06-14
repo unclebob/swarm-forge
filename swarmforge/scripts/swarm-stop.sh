@@ -42,10 +42,7 @@ _swarm_stop_main() {
 
   touch "$busy_file"
 
-  pending_content="$(< "$pending_file")"
-  handoff_append_logbook "executing" "$pending_content" "clear-first delivery from Stop hook"
-
-  handoff_clear_first_deliver "$project_dir" "$role" "$pending_file"
+  "$SCRIPT_DIR/swarm-handoff" deliver "$role" --file "$pending_file"
 
   rm -f "$pending_file"
 }
