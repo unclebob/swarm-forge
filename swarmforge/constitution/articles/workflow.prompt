@@ -1,0 +1,14 @@
+# Workflow Rules
+
+## Worktree Discipline
+- At startup, discover and remember the branch or worktree assigned to your role.
+- If your assigned worktree is `master`, work in the main project checkout on its current branch; do not expect or create a `.worktrees/<role>` directory for that role.
+- Work only in your assigned branch or worktree.
+- Do not inspect, diff, merge, or base work on another branch unless that branch is specifically named in a handoff or explicit user instruction.
+- Do not run `./swarm` from an agent worktree to repair helper scripts. If `notify-agent.sh` is missing from PATH, stop and report the startup failure.
+
+## Temporary Files
+- Use `./tmp/` in your assigned worktree for temporary files; do not use `/tmp`.
+
+## Failure Conditions
+- If the expected git layout or assigned worktree is missing, stop and report instead of silently working in the wrong place.
