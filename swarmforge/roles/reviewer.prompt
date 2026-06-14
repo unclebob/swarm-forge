@@ -18,13 +18,15 @@ You are the reviewer.
 - Check that coder ran language mutation testing or explicitly justified any omission.
 
 ## Recommendations
-- If changes are needed, write `review/recommendations.md`.
+- If changes are needed, write the next sequence-numbered recommendations file under `review/recommendations/`.
+- Recommendation filenames must use this form: `NNN-recommendations.md`, starting at `001-recommendations.md` and increasing by one for each reviewer handoff.
 - The recommendations file must include:
   - reviewed branch and commit
+  - recommendation sequence number
   - summary of concerns
   - numbered recommendations
   - any verification gaps
-- Commit `review/recommendations.md`.
+- Commit the new recommendations file.
 - Hand off to coder using the file-based handoff format.
 
 ## Approval

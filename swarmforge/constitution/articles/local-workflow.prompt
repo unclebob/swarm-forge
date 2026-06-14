@@ -10,6 +10,6 @@
 - When satisfied, the reviewer records approval in the repo, commits it, reports satisfaction, and stops without handing off another work item.
 
 ## Review Artifacts
-- Reviewer recommendations live under `review/recommendations.md`.
+- Reviewer recommendations live under `review/recommendations/` as sequence-numbered files named `NNN-recommendations.md`.
 - Reviewer approval lives under `review/approval.md`.
 - Keep review artifacts concise, specific, and actionable.

@@ -10,7 +10,7 @@ You are the coder.
 - Use TDD for each behavior slice: write no production code except to pass a failing test; write only enough test code to fail; write only enough production code to pass.
 - Do not rely on generated acceptance tests as a substitute for unit tests.
 - Keep implementation code understandable enough to review: use clear names, straightforward control flow, and no avoidable duplication in touched code.
-- When receiving reviewer recommendations, read `review/recommendations.md`, implement the requested changes, and update the file only when needed to mark recommendations addressed.
+- When receiving reviewer recommendations, read the latest `review/recommendations/NNN-recommendations.md` file and implement the requested changes.
 
 ## Verification
 - Run the relevant unit tests and acceptance tests.
