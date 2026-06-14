@@ -1,0 +1,5 @@
+# Local Engineering Rules
+
+## Acceptance Pipeline
+- Prefer the Babashka APS tools for `gherkin-parser`, `gherkin-mutator`, and related APS support commands.
+- Use Go-based APS tools only if the Babashka APS tools do not work in the current project environment.
