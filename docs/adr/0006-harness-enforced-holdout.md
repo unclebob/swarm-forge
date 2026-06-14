@@ -10,7 +10,7 @@ Upstream holds the end-to-end QA suite back from the coder by prompt instruction
 
 **Mechanism: `git sparse-checkout`, not file deletion.** The worktree-prep step the harness already runs sets a sparse-checkout on each role worktree that excludes the QA-suite path. Sparse-checkout makes the file *absent from disk but still tracked in the commit* — so the role cannot read it, yet its commit cannot accidentally drop it downstream. Naive deletion (`rm` from the worktree) was rejected for exactly this reason: the role commits with `git add`, the deletion gets staged, and the suite vanishes for QA. A separate QA-only branch was rejected as more flow change for no extra protection.
 
-**Scope: hide from implementers, keep for author and verifier.** The exclusion applies to every worktree *except* the specifier's (`master` — it authors the suite) and QA's (it runs the suite — it is the verifier). Coder, UX Engineer, cleaner, architect, and hardener all touch the implementation before QA and so are walled. The integrator never touches implementation; its worktree is irrelevant either way.
+**Scope: hide from implementers, keep for author and verifier.** The exclusion applies to every worktree *except* the **specifier's** (it authors the suite) and **QA's** (it runs the suite — it is the verifier). Key the exclusion on the specifier *role*, not a fixed worktree name: it is the `master` worktree on upstream today, but ADR 0008 moves the specifier to its own `specifier` worktree, and this rule must follow it. Coder, UX Engineer, cleaner, architect, and hardener all touch the implementation before QA and so are walled. The integrator never touches implementation; its worktree is irrelevant either way.
 
 **Precondition: a fixed QA-suite path.** For the harness to exclude the suite it must live at a deterministic path; the specifier writes the end-to-end QA suite under a pinned location (e.g. `qa/`). This is the only added convention. The existing coder-prompt "ignore it" line stays as defense-in-depth.
 
@@ -18,6 +18,6 @@ Upstream holds the end-to-end QA suite back from the coder by prompt instruction
 
 ## Pending implementation
 
-- Add the sparse-checkout exclusion to the worktree-prep step (`six-pack`/scripts), keyed to skip the specifier(master) and QA worktrees.
+- Add the sparse-checkout exclusion to the worktree-prep step (`six-pack`/scripts), keyed to skip the specifier's worktree (whatever its name — `master` today, `specifier` once ADR 0008 lands) and QA's.
 - Pin the end-to-end QA-suite path in the specifier prompt.
 - Confirm sparse-checkout interacts cleanly with the coder→cleaner→…→QA handoff commits (the excluded path must survive each role's commit untouched).

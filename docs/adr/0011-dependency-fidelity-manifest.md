@@ -6,7 +6,7 @@ status: accepted
 
 A scenario that rests on an emulated dependency the emulator does not actually implement passes green and proves nothing — the system was never exercised against the behavior the scenario claims to cover. The fork makes dependency fidelity **explicit and refusable** through a new constitution sub-file, `swarmforge/dependency-manifest.prompt`, that declares every dependency beyond the system itself by fidelity tier. This is the reference loop's Digital-Twin discipline: a twin is only trustworthy if its fidelity — and its gaps — are stated.
 
-**A separate constitution file, not `project.prompt`.** The manifest holds project-specific dependency data that would clutter `project.prompt`; it lives in its own file, auto-resolved by the same bundle resolver as the other constitution sub-files. It ships on both packs and defaults to `(none)` — a project with no external dependencies declares nothing.
+**A separate constitution file, not `project.prompt`.** The manifest holds project-specific dependency data that would clutter `project.prompt`; it lives in its own file, auto-resolved by the same bundle resolver as the other constitution sub-files. It ships on `six-pack` (four-pack is frozen) and defaults to `(none)` — a project with no external dependencies declares nothing.
 
 **Three tiers (the system itself is always implicit).** Tier 1 — owned infrastructure run locally as the real engine (e.g. Postgres in Docker). Tier 2 — stateful, protocol-level emulation (preference order: vendor-official emulator > established third-party > a swarm-built twin only as last resort). Tier 3 — external domain the swarm does not own (third-party APIs, other teams' services), wire-level stubbed against a referenced contract. Entry format: `name: tier N; implementation; gaps: <description or none>`.
 
@@ -16,5 +16,5 @@ A scenario that rests on an emulated dependency the emulator does not actually i
 
 ## Pending implementation
 
-- Add `swarmforge/dependency-manifest.prompt` (tier definitions inline, body `(none)`) on `four-pack` and `six-pack`.
-- Add the read-manifest / propose-on-undeclared rule to `specifier.prompt` (both packs); QA's refusal of gap-resting scenarios is part of refuting QA (ADR 0005).
+- Add `swarmforge/dependency-manifest.prompt` (tier definitions inline, body `(none)`) on `six-pack`. (four-pack is frozen per ADR 0001 / the change manifest.)
+- Add the read-manifest / propose-on-undeclared rule to `specifier.prompt` (`six-pack`); QA's refusal of gap-resting scenarios is part of refuting QA (ADR 0005).

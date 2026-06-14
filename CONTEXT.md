@@ -29,7 +29,7 @@ The file (`.swarmforge/setup-complete`) that `setup-swarm` writes to record that
 _Avoid_: setup flag, ready file, lock
 
 **Integrator**:
-The terminal role that lands finished work. From the QA-approved commit it opens a pull request, gates on CI, merges only on green, runs the post-merge verification, and notifies the specifier — one PR per feature. It never merges locally: CI is a hard precondition, so a project without CI is not swarm-ready (setup ensures CI; see [[project-fork-divergence-adr-structure]] / ADR 0003). CI failures route to the owning role via [[back-routing]]. (Upstream has no integrator — the specifier merges ad hoc.)
+The terminal role that lands finished work. From the QA-approved commit it opens a pull request, gates on CI, merges only on green, runs the post-merge verification, and notifies the specifier — one PR per feature. It never merges locally: CI is a hard precondition, so a project without CI is not swarm-ready (setup ensures CI; see ADR 0003). CI failures route to the owning role via [[back-routing]]. (Upstream has no integrator — the specifier merges ad hoc.)
 _Avoid_: merger, releaser, deployer
 
 **UX Engineer** (six-pack only):

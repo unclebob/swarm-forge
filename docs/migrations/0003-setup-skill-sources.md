@@ -30,7 +30,7 @@ Refs: `idea-K` = `origin/docs/ideas-backlog:docs/ideas/idea-K-setup-preflight.md
 | Session tracking | `entire enable …` + `entire agent add <backend>` per conf backend | `idea-K`, `mono §K` |
 | ~~Skill pins~~ → **ADR 0018, not setup-swarm** | `entire` skills at pinned SHA (`install-pins.conf` `ENTIRE_SKILLS_SHA`); 11 skills + `agent-retro` to `.claude/skills/`. **Moved out of setup-swarm (decision 2026-06-14):** this is launcher infra-bootstrap, auto-installed by `./swarm` (`ensure_skills_installed`, pin-aware). Documented in **ADR 0018 (Idea N)**. | `mono §Idea N:100` |
 | Permissions | write to `.claude/settings.json`: `Bash(gh pr merge*)` (integrator), `Bash(git reset --hard origin/<default-branch>)` (specifier) | `mono §Idea O:334` |
-| Install scaffold | `.gitignore` ← `logbook.json`, `tmp/`, `.swarmforge/`; default-branch probe `git symbolic-ref refs/remotes/origin/HEAD` → `swarmforge.conf` | `mono §Idea O:330-332` |
+| Install scaffold | `.gitignore` ← `logbook.jsonl`, `tmp/`, `.swarmforge/`; default-branch probe `git symbolic-ref refs/remotes/origin/HEAD` → `swarmforge.conf` | `mono §Idea O:330-332` |
 
 Note four-pack equivalents exist (architect/refactorer/coder) but four-pack is **frozen** — six-pack rows above are what matters.
 

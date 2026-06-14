@@ -12,4 +12,4 @@ Upstream has no rule for what a role does when a spec requirement conflicts with
 
 ## Pending implementation
 
-- `four-pack` + `six-pack`: add the rule to `swarmforge/constitution/workflow.prompt`.
+- `six-pack`: add the rule to `swarmforge/constitution/workflow.prompt`. (four-pack is frozen per ADR 0001 / the change manifest.)

@@ -18,7 +18,7 @@ Upstream has no integrator: when QA signals done, the **specifier** merges the w
 
 ## Pending implementation
 
-- Runnable branches (`six-pack`; `four-pack` where present): new terminal `integrator` role; `swarmforge.conf` window; specifier worktree change and removal of its merge step.
+- Runnable branch (`six-pack`): new terminal `integrator` role; `swarmforge.conf` window; specifier worktree change and removal of its merge step. (four-pack is frozen per ADR 0001 / the change manifest.)
 - The PR/CI mechanism (platform, e.g. `gh`) named at implementation.
 - CI-in-place enforced as a setup precondition (`0003`); routing per `0004`.
 - Terminal handoff target is the curator (`0013`), not the specifier; autofixable lint/format is the integrator's only allowed code change.

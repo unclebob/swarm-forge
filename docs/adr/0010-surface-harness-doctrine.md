@@ -8,7 +8,7 @@ Two defects (a screen blink and a runaway key-repeat) once survived a 250-scenar
 
 This is the reference verification loop's execute-and-observe layer (its Steps 5–7) made concrete: build the real thing, drive it through its surface, assert on what comes out.
 
-**Surface tool table (in `engineering.prompt`).** Following the existing language-tool-table pattern, the constitution declares the harness tool per surface type: tmux/PTY for a TUI (`send-keys -l` for raw input at controlled timing, `capture-pane` for screen state over time), Playwright for web, an HTTP client for HTTP APIs, event-injection-at-ingress for headless services. Roles owning live verification — **QA** (both packs) and the **UX Engineer** (six-pack, ADR 0007) — identify the project's surface *from the codebase* and acquire the matching tool before their first harness run, exactly as they acquire language tools.
+**Surface tool table (in `engineering.prompt`).** Following the existing language-tool-table pattern, the constitution declares the harness tool per surface type: tmux/PTY for a TUI (`send-keys -l` for raw input at controlled timing, `capture-pane` for screen state over time), Playwright for web, an HTTP client for HTTP APIs, event-injection-at-ingress for headless services. Roles owning live verification — **QA** and the **UX Engineer** (six-pack, ADR 0007) — identify the project's surface *from the codebase* and acquire the matching tool before their first harness run, exactly as they acquire language tools.
 
 **No surface field in `project.prompt`.** Roles read the code to know the surface; an explicit declaration would be a meaningless placeholder until the project is customised.
 
@@ -22,7 +22,7 @@ This is the reference verification loop's execute-and-observe layer (its Steps 5
 
 ## Pending implementation
 
-- Add the surface tool table + context-driven acquisition rule to `engineering.prompt` on `four-pack` and `six-pack`.
-- Change QA's "through the UI only" to "through the declared surface harness" and add the Expected-bullet → assertion / `NOT AUTOMATED` rule in `QA.prompt` (both packs).
+- Add the surface tool table + context-driven acquisition rule to `engineering.prompt` on `six-pack`. (four-pack is frozen per ADR 0001 / the change manifest; all `six-pack`-only below for the same reason.)
+- Change QA's "through the UI only" to "through the declared surface harness" and add the Expected-bullet → assertion / `NOT AUTOMATED` rule in `QA.prompt` (`six-pack`).
 - Require the per-surface baseline scenario to be committed with every feature's flow scenarios.
 - `six-pack`: add the rendering-invariant property-test rule for pure rendering functions to `hardender.prompt`. Source: recover from `backup/six-pre-reset`.

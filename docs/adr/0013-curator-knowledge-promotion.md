@@ -22,7 +22,7 @@ Upstream ends the line at QA: the specifier merges and asks for the next feature
 
 ## Pending implementation
 
-- `six-pack` then `four-pack`: new `curator` role prompt; `swarmforge.conf` gains the curator window (last); rewire — integrator notifies the curator, specifier waits on the curator before the next feature, `workflow.prompt` documents the integrator→curator→specifier chain.
+- `six-pack` (four-pack is frozen per ADR 0001 / the change manifest): new `curator` role prompt; `swarmforge.conf` gains the curator window (last); rewire — integrator notifies the curator, specifier waits on the curator before the next feature, `workflow.prompt` documents the integrator→curator→specifier chain.
 - `main`: upgrade the `agent-retro` skill — scope tag on every action, capture-first (no pre-filter), and an autonomous mode that marks actions `pending-curation` without prompting a human.
 - `main`: `agent-retro` transcript capture (`entire session current` → `session info --transcript`, with the `~/.claude/projects/` fallback); add the "run `agent-retro` before going idle" line to every role prompt. Source: `feat/issue-20-a-retro-skill-upgrade`.
 - Pairs with ADR 0014 (the `.agents/` contract the curator writes and the launcher injects).

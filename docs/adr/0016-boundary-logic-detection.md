@@ -12,5 +12,4 @@ Boundary files — environmentally-unsuitable adapter shells like TUI drivers, O
 
 ## Pending implementation
 
-- `six-pack`: extend `swarmforge/roles/cleaner.prompt` to scan boundary files at the ~15–20 site threshold and add the stripped-view anti-pattern.
-- `four-pack`: same in `swarmforge/roles/refactorer.prompt`.
+- `six-pack`: extend `swarmforge/roles/cleaner.prompt` to scan boundary files at the ~15–20 site threshold and add the stripped-view anti-pattern. (four-pack — whose equivalent role is `refactorer` — is frozen per ADR 0001 / the change manifest; no change there.)
