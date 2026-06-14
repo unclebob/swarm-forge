@@ -286,7 +286,7 @@ check_helper_scripts() {
     fi
   done
 
-  for helper in terminal-app.sh ghostty.sh windows-terminal.sh none.sh; do
+  for helper in terminal-app.sh iterm2.sh ghostty.sh windows-terminal.sh none.sh; do
     if [[ ! -x "$SCRIPT_DIR/terminal-adapters/$helper" ]]; then
       echo -e "${RED}Error:${RESET} Required terminal adapter not found or not executable: $SCRIPT_DIR/terminal-adapters/$helper"
       exit 1

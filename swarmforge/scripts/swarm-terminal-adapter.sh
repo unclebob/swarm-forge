@@ -6,6 +6,9 @@ normalize_terminal_backend() {
   local backend="${1:l}"
 
   case "$backend" in
+    iterm|iterm2|iterm.app)
+      echo "iterm2"
+      ;;
     terminal|terminal-app|terminal.app)
       echo "terminal-app"
       ;;
@@ -28,6 +31,10 @@ detect_terminal_backend() {
   fi
 
   if has_command osascript; then
+    if [[ "${TERM_PROGRAM:-}" == "iTerm.app" ]]; then
+      echo "iterm2"
+      return
+    fi
     echo "terminal-app"
     return
   fi
