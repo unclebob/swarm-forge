@@ -67,3 +67,15 @@ _Avoid_: mock list, dependency doc, services file
 **Dependency tier**:
 The fidelity level at which a dependency is provided, declared in the _fidelity manifest_. Tier 1 — owned infrastructure run locally as the real engine (Postgres in Docker); tier 2 — stateful protocol-level emulation (vendor-official > third-party > swarm-built twin as last resort); tier 3 — external domain the swarm does not own, wire-level stubbed against a referenced contract. The system itself is always implicit, never a tier.
 _Avoid_: mock level, fidelity grade
+
+**Curator**:
+The terminal role, after the integrator, that turns a run's session retros into versioned repo knowledge via one self-merging PR, then releases the specifier for the next feature. Makes no code changes — writes only _promoted knowledge_. An empty run notifies the specifier immediately; the line never stalls on it. (Upstream has no such role; lessons live only in unread retros.)
+_Avoid_: librarian, archivist, scribe
+
+**Promoted knowledge**:
+The project-versioned knowledge contract the _curator_ writes and the launcher injects into role bundles: a root `AGENTS.md` (universal invariants + navigation) and `.agents/` (per-role files, references, skills, the enforcement-gate backlog, the _knowledge ledger_). Lives in the repo, not `~/.claude`, so a fresh clone carries every lesson. `AGENTS.md` and the role's file are injected into that role's bundle at launch; references load on demand by pointer. (Upstream bundles only the constitution and role prompt.)
+_Avoid_: docs, memory, knowledge base
+
+**Knowledge ledger**:
+`.agents/ledger.md` — the append-only audit the _curator_ writes, one never-pruned line per processed retro item (`date | session-id | role | failure-class | verdict`). Makes recurrence provable: an item rejected before and seen again has proven itself worth promoting.
+_Avoid_: changelog, history, log
