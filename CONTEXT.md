@@ -39,3 +39,7 @@ _Avoid_: verification, acceptance check, confirm
 **Back-routing**:
 Sending rework back to the stage whose decision it exposes as flawed, instead of resolving it where it was found. The trigger is any finding that an earlier stage's work must change — a bug, a refactor blocked by a bad earlier decision, or a design/spec revision. Applies only to _structural_ rework (re-opening an earlier stage's job: an ambiguous/missing spec, a weak/missing test, a design that can't hold the behavior); _local_ work the finder can resolve without re-opening an earlier decision stays with the finder. Routes back at most once. (Upstream fixes everything in place.)
 _Avoid_: rejection, escalation, bounce, defect back-routing
+
+**QA holdout**:
+The end-to-end QA suite kept physically out of reach of every role that shapes the implementation, so it stays a blind test. The harness sparse-checks-out the suite's pinned path from each role worktree except the specifier's (which authors it) and QA's (which runs it) — present in the commit, absent from disk. Distinct from upstream's prompt-level "ignore it," which leaves the files in the coder's worktree. Covers only the end-to-end QA suite; the Gherkin acceptance tests stay visible because the coder builds and runs them. (Upstream walls it by instruction only.)
+_Avoid_: hidden tests, secret suite, test isolation

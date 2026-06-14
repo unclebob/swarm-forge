@@ -1,19 +1,29 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Harness-enforced holdout of the QA suite
 
-**Open item — not decided.** Recorded so the gap is visible; needs a decision before any work.
+Upstream holds the end-to-end QA suite back from the coder by prompt instruction alone: the coder's prompt says "ignore the specifier's end-to-end QA suite," but the files sit in the coder's own worktree (every worktree is `git worktree add -B … HEAD`, a full checkout of the commit the specifier wrote the suite into). The wall is honor-system. The fork makes it **mechanical**: the QA suite is physically absent from the worktree of every role that shapes the implementation, so "ignore it" becomes "cannot reach it."
 
-Upstream already holds the end-to-end QA suite back from the coder: the coder's prompt says "ignore the specifier's end-to-end QA suite." But the wall is **honor-system only** — roles run in separate worktrees, yet the coder bases its work on the specifier's accepted commit, and the QA suite is part of that commit. The files sit in the coder's own working tree; nothing but a prompt instruction stops it from reading them.
+**Why mechanical, not instructional.** The verification-loop reference is explicit that the scenario suite is a *holdout* — "never visible to the code generation agent" — and names the failure mode directly: "holdout leakage … must be enforced architecturally (filesystem isolation, separate repos, access controls)," not by a prompt. A holdout the implementer can read is a holdout the implementer can quietly fit to; the suite then stops being a blind test and QA running it proves nothing. This is the prevention layer that the detection layers (mutation testing + refuting QA, ADR 0005) cannot supply: detection catches a gamed suite after the fact; the wall stops the gaming.
 
-The "AI Software Factory" reference argues a reachable validation criterion is a gamed one — "if the coding agent can see the tests, it will game them" — so the protection that counts is *mechanical*, not instructional. This item proposes making the holdout **harness-enforced**: the QA suite is physically absent from the coder's reach (for example, the specifier commits it on a path or branch the coder never bases on, or the harness strips QA-suite files from the coder's worktree), so "ignore it" becomes "cannot reach it."
+**Mechanism: `git sparse-checkout`, not file deletion.** The worktree-prep step the harness already runs sets a sparse-checkout on each role worktree that excludes the QA-suite path. Sparse-checkout makes the file *absent from disk but still tracked in the commit* — so the role cannot read it, yet its commit cannot accidentally drop it downstream. Naive deletion (`rm` from the worktree) was rejected for exactly this reason: the role commits with `git add`, the deletion gets staged, and the suite vanishes for QA. A separate QA-only branch was rejected as more flow change for no extra protection.
 
-It is filed as a candidate, not a decision, because enforcing a true holdout in a shared-git, peer-role swarm is non-trivial and may not be worth its cost: the fork already backs the visible test layers with mutation testing and an adversarial (refuting) QA suite, which is detection rather than prevention. Whether to add prevention on top is the open question.
+**Scope: hide from implementers, keep for author and verifier.** The exclusion applies to every worktree *except* the specifier's (`master` — it authors the suite) and QA's (it runs the suite — it is the verifier). Coder, UX Engineer, cleaner, architect, and hardener all touch the implementation before QA and so are walled. The integrator never touches implementation; its worktree is irrelevant either way.
 
-## Open questions
+**Precondition: a fixed QA-suite path.** For the harness to exclude the suite it must live at a deterministic path; the specifier writes the end-to-end QA suite under a pinned location (e.g. `qa/`). This is the only added convention. The existing coder-prompt "ignore it" line stays as defense-in-depth.
 
-- Can the QA suite be kept out of the coder's worktree without breaking the specifier→coder→QA handoff flow (the coder must still build against the spec, just not the QA suite)?
-- Is harness-enforced prevention worth it given the fork already has mutation + refuting QA as detection?
-- Does the same concern apply to the Gherkin acceptance tests, or only the QA suite? (The coder must see and build the Gherkin runner, so those likely cannot be walled off.)
+**Scope boundary: only the end-to-end QA suite.** The Gherkin acceptance tests and the acceptance pipeline stay fully visible — the coder builds and runs them. The holdout is the specifier's end-to-end QA suite alone.
+
+## Considered options
+
+- **Keep upstream's prompt-level "ignore it" (detection-only)** — rejected: an implementer that can read the holdout can fit to it; the reference doc calls instructional holdouts a leak that must be closed architecturally. Mutation + refuting QA detect a weak suite but do not stop the implementation being shaped to the visible one.
+- **Harness deletes the QA path from the worktree** — rejected: the role's commit stages the deletion and the suite disappears downstream for QA.
+- **Specifier commits the QA suite to a separate QA-only branch** — rejected: more handoff-graph complexity (QA must merge code + QA branch) for no protection sparse-checkout doesn't already give.
+
+## Pending implementation
+
+- Add the sparse-checkout exclusion to the worktree-prep step (`six-pack`/scripts), keyed to skip the specifier(master) and QA worktrees.
+- Pin the end-to-end QA-suite path in the specifier prompt.
+- Confirm sparse-checkout interacts cleanly with the coder→cleaner→…→QA handoff commits (the excluded path must survive each role's commit untouched).
