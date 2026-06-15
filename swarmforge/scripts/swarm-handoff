@@ -179,28 +179,33 @@ _do_deliver() {
     tmux_cmd=(tmux -S "$socket" send-keys -t "$target_session")
   fi
 
-  # Wait for Claude Code to finish startup (hook output, welcome overlay, etc.)
-  # before sending any keystrokes — without this, C-m dismisses the overlay
-  # instead of submitting, causing all messages to concatenate in the input bar.
+  # Wait for Claude Code to finish startup before sending keystrokes.
   sleep 3
 
-  # Clear — wait long enough for Claude Code to process the slash command
+  # Clear — wait long enough for Claude Code to process the slash command.
+  # C-m + C-j sends CR+LF; Claude Code requires both to register Enter.
   "${tmux_cmd[@]}" -l -- '/clear'
   sleep 0.5
   "${tmux_cmd[@]}" C-m
+  sleep 0.05
+  "${tmux_cmd[@]}" C-j
   sleep 2.0
 
   # Re-load persona via slash command before delivering — context was wiped by /clear
   "${tmux_cmd[@]}" -l -- '/swarm-persona'
   sleep 0.5
   "${tmux_cmd[@]}" C-m
+  sleep 0.05
+  "${tmux_cmd[@]}" C-j
   sleep 2.0
 
   # Send protocol message (newlines flattened to avoid multi-line input mode)
   local flat_message="${message//$'\n'/ }"
   "${tmux_cmd[@]}" -l -- "$flat_message"
-  sleep 0.5
+  sleep 0.15
   "${tmux_cmd[@]}" C-m
+  sleep 0.05
+  "${tmux_cmd[@]}" C-j
 }
 
 if [[ $# -eq 0 ]]; then
