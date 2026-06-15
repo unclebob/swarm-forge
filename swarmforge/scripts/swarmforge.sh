@@ -573,7 +573,7 @@ launch_role() {
       local claude_flags=""
       [[ -n "$role_model" ]]  && claude_flags+=" --model ${(q)role_model}"
       [[ -n "$role_effort" ]] && claude_flags+=" --effort ${(q)role_effort}"
-      launch_cmd="export SWARMFORGE_ROLE='$role' && export PATH='$role_script_dir':\$PATH && cd '$role_worktree' && claude${claude_flags} --append-system-prompt-file '$prompt_file' --permission-mode auto -n 'SwarmForge ${display}'"
+      launch_cmd="export SWARMFORGE_ROLE='$role' && export PATH='$role_script_dir':\$PATH && cd '$role_worktree' && claude${claude_flags} --append-system-prompt-file '$prompt_file' --permission-mode auto -n 'SwarmForge ${display}' \"\$(cat '$prompt_file')\""
       ;;
     codex)
       [[ -n "$role_advisor" ]] && write_worktree_settings "$role_worktree" "$role_advisor"
