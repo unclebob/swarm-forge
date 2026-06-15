@@ -603,7 +603,7 @@ install_skills() {
   source "$pins_file"
 
   echo -e "${CYAN}Installing skills...${RESET}"
-  mkdir -p "$skills_dst"
+  mkdir -p "$STATE_DIR" "$skills_dst"
 
   if [[ -d "$skills_src/agent-retro" ]]; then
     rm -rf "$skills_dst/agent-retro"
