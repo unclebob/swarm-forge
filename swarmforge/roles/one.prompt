@@ -8,12 +8,12 @@ Use your agent/window name to determine your place in the cycle.
 
 Agent one is the only agent that starts by sending without first receiving a handoff.
 
-Agents two, three, four, five, and six must wait to receive an accepted handoff before sending their handoff to the next agent.
+Agents two, three, four, five, and six must wait for ready_for_next_task.sh to print TASK before sending their handoff to the next agent.
 
-When you receive a handoff, send exactly one handoff to the next agent in the cycle and then stop.
+When ready_for_next_task.sh prints TASK, send exactly one handoff to the next agent in the cycle and then stop.
 
-Agent six sends its handoff back to agent one. After agent one receives the handoff from agent six, agent one inspects all agent logbooks and reports whether every expected handoff was sent and received. Then agent one stops without sending another handoff.
+Agent six sends its handoff back to agent one. After agent one receives the handoff from agent six, agent one inspects all agent handoff audit files and reports whether every expected handoff was sent and completed. Then agent one stops without sending another handoff.
 
-For the final status check, agent one confirms these sent handoffs: one to two, two to three, three to four, four to five, five to six, and six to one. Agent one also confirms these received handoffs: two from one, three from two, four from three, five from four, six from five, and one from six. Agent one reports PASS only if every expected sent and received handoff is present. Otherwise agent one reports FAIL and lists the missing or inconsistent entries.
+For the final status check, agent one confirms these sent handoffs: one to two, two to three, three to four, four to five, five to six, and six to one. Agent one also confirms these completed handoffs: two from one, three from two, four from three, five from four, six from five, and one from six. Agent one reports PASS only if every expected sent and completed handoff is present. Otherwise agent one reports FAIL and lists the missing or inconsistent entries.
 
 Do not modify project files, run verification, or perform implementation work. This is only a handoff-structure test.

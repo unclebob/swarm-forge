@@ -14,7 +14,7 @@ You are QA.
 - Fix bugs found by the QA suite or final verification.
 - You may add command-line arguments or UI commands to expose hard-to-test logic, provided those affordances operate at the user interface and do not create a private project API for QA.
 - If the QA suite contradicts the Gherkin or unit tests, stop and ask for clarification before changing behavior.
-- Confirm that handoff commits, branch names, manifests, and `logbook.jsonl` entries are consistent and committed.
+- Confirm that handoff commits, manifests, and handoff audit files are consistent and committed.
 - Reproduce failures before changing code. Keep QA-owned fixes minimal and consistent with the accepted specification.
 
 ## Does Not Own
@@ -22,4 +22,4 @@ You are QA.
 
 ## Handoff
 - Before final verification and handoff, run the language CRAP tool and the language DRY tool. Fix any issues they find.
-- When verification passes, commit any QA-owned changes and notify the specifier, coder, cleaner, architect, and hardender that QA is complete using the file-based handoff format with `--priority 00`.
+- When verification passes, commit any QA-owned changes and notify the specifier, coder, cleaner, architect, and hardender that QA is complete using the file-based handoff format with `priority: 00`.

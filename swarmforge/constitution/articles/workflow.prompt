@@ -8,13 +8,13 @@
 - `five` sends to `six`.
 - `six` sends to `one`.
 - `one` is the only agent that starts by sending without first receiving a handoff.
-- `two`, `three`, `four`, `five`, and `six` must wait to receive an accepted handoff before sending their handoff to the next agent.
-- After `one` receives the handoff from `six`, `one` inspects all agent logbooks and reports whether every expected handoff was sent and received.
+- `two`, `three`, `four`, `five`, and `six` must wait to receive a task from `ready_for_next_task.sh` before sending their handoff to the next agent.
+- After `one` receives the handoff from `six`, `one` inspects handoff audit files and reports whether every expected handoff was sent and completed.
 - After reporting status, `one` stops without sending another handoff.
 
 ## Final Status Check
 - The final status check belongs only to `one`.
-- Inspect the logbooks for `one`, `two`, `three`, `four`, `five`, and `six`.
+- Inspect the handoff `sent` and `inbox/completed` audit files for `one`, `two`, `three`, `four`, `five`, and `six`.
 - Confirm these sent handoffs: `one` to `two`, `two` to `three`, `three` to `four`, `four` to `five`, `five` to `six`, and `six` to `one`.
-- Confirm these received handoffs: `two` from `one`, `three` from `two`, `four` from `three`, `five` from `four`, `six` from `five`, and `one` from `six`.
-- Report `PASS` only if every expected sent and received handoff is present. Otherwise report `FAIL` and list the missing or inconsistent entries.
+- Confirm these completed handoffs: `two` from `one`, `three` from `two`, `four` from `three`, `five` from `four`, `six` from `five`, and `one` from `six`.
+- Report `PASS` only if every expected sent and completed handoff is present. Otherwise report `FAIL` and list the missing or inconsistent entries.

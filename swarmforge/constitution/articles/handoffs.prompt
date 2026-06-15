@@ -1,15 +1,48 @@
 # Handoff Rules
 
 ## Sending Handoffs
-- For every outgoing handoff, write the handoff body to `./tmp/<target-role>-handoff.txt`.
-- To send it, write `.swarmforge/notify/request` with `command: send`, `target: <target-role>`, and `file: ./tmp/<target-role>-handoff.txt`, then run `notify-agent.sh` with no arguments.
-- Keep the handoff body short. Start it with: `Re-read your role and constitution.`
-- Do not include branch names, commit hashes, verification notes, or implementation instructions in the body.
+- Write a draft handoff file with only structured headers, then run `swarm_handoff.sh <draft-file>`.
+- Use only these message types:
+  - `awake`
+  - `git_handoff`
+  - `note`
+- For `awake`, write:
+
+```text
+type: awake
+to: <role>[,<role>...]
+priority: NN
+```
+
+- For `git_handoff`, commit first, then write:
+
+```text
+type: git_handoff
+to: <role>[,<role>...]
+priority: NN
+commit: <10-character-commit-abbrev>
+```
+
+- For `note`, write:
+
+```text
+type: note
+to: <role>[,<role>...]
+priority: NN
+message: <one line, max 80 chars>
+```
+
+- If `swarm_handoff.sh` reports validation errors, repair the draft and rerun it.
+- Do not write long handoff bodies. The helper generates the delivered payload.
+- Do not send tmux notifications directly.
 
 ## Receiving Handoffs
-- Save the complete incoming message to `./tmp/incoming-handoff.txt` or another local file.
-- To receive it, write `.swarmforge/notify/request` with `command: receive` and `file: <saved-message-file>`, then run `notify-agent.sh` with no arguments.
-- If the helper reports `DO NOT PROCESS`, stop.
-- Process only accepted queue files created by the receive helper under `.swarmforge/handoffs/queue/accepted/`.
-- After finishing the accepted queue file, write `.swarmforge/notify/request` with `command: complete` and `file: <accepted-queue-file>`, then run `notify-agent.sh` with no arguments.
-- Do not delete accepted queue files directly.
+- When notified, run `ready_for_next_task.sh`.
+- If it prints `NO_TASK`, stop waiting for work.
+- If it prints `TASK: <path>`, treat the printed `PAYLOAD` as the task.
+- Use only the task information printed by the helper scripts.
+- If a tmux wake-up arrives while already working on a task, ignore it.
+- When the task is fully complete, run `done_with_current_task.sh`.
+- If `done_with_current_task.sh` prints `TASK: <path>`, treat the printed `PAYLOAD` as the next task.
+- If `done_with_current_task.sh` prints `NO_TASK`, stop waiting for work.
+- On restart, run `ready_for_next_task.sh` and follow its output.

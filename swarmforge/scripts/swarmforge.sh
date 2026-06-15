@@ -24,7 +24,10 @@ WINDOW_IDS_FILE="$STATE_DIR/window-ids"
 WINDOW_STATE_FILE="$STATE_DIR/windows.tsv"
 WINDOW_WATCHDOG_LOG="$STATE_DIR/window-watchdog.log"
 SESSIONS_FILE="$STATE_DIR/sessions.tsv"
+ROLES_FILE="$STATE_DIR/roles.tsv"
 PROMPTS_DIR="$STATE_DIR/prompts"
+DAEMON_DIR="$STATE_DIR/daemon"
+HANDOFF_DAEMON_LOG="$DAEMON_DIR/handoffd.log"
 TMUX_SOCKET_DIR="/private/tmp/swarmforge-${UID}"
 PROJECT_SOCKET_ID="$(printf '%s' "$WORKING_DIR" | cksum)"
 PROJECT_SOCKET_ID="${PROJECT_SOCKET_ID%% *}"
@@ -214,6 +217,11 @@ parse_config() {
       exit 1
     fi
 
+    if [[ "$role" == *"_"* ]]; then
+      echo -e "${RED}Error:${RESET} Invalid role '$role' on line $line_no: role names may not contain underscores"
+      exit 1
+    fi
+
     if [[ -n "${ROLE_INDEX[$role]:-}" ]]; then
       echo -e "${RED}Error:${RESET} Duplicate role '$role' in $CONFIG_FILE"
       exit 1
@@ -277,9 +285,23 @@ write_sessions_file() {
   done
 }
 
+write_roles_file() {
+  : > "$ROLES_FILE"
+  local i
+  for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${ROLES[$i]}" \
+      "${WORKTREE_NAMES[$i]}" \
+      "${WORKTREE_PATHS[$i]}" \
+      "${SESSIONS[$i]}" \
+      "${DISPLAY_NAMES[$i]}" \
+      "${AGENTS[$i]}" >> "$ROLES_FILE"
+  done
+}
+
 check_helper_scripts() {
   local helper
-  for helper in notify-agent.sh send-handoff.sh receive-handoff.sh resend-handoff.sh complete-handoff.sh handoff-lib.sh swarm-cleanup.sh swarm-window-watchdog.sh swarm-terminal-adapter.sh; do
+  for helper in notify-agent.sh send-handoff.sh receive-handoff.sh resend-handoff.sh complete-handoff.sh handoff-lib.sh swarm_handoff.sh ready_for_next_task.sh done_with_current_task.sh handoffd.bb swarm-cleanup.sh swarm-window-watchdog.sh swarm-terminal-adapter.sh; do
     if [[ ! -x "$SCRIPT_DIR/$helper" ]]; then
       echo -e "${RED}Error:${RESET} Required helper script not found or not executable: $SCRIPT_DIR/$helper"
       exit 1
@@ -295,10 +317,11 @@ check_helper_scripts() {
 }
 
 prepare_workspace() {
-  mkdir -p "$STATE_DIR" "$NOTIFY_DIR" "$PROMPTS_DIR" "$WORKTREES_DIR" "$TMUX_SOCKET_DIR"
+  mkdir -p "$STATE_DIR" "$NOTIFY_DIR" "$PROMPTS_DIR" "$WORKTREES_DIR" "$TMUX_SOCKET_DIR" "$DAEMON_DIR"
   printf '%s\n' "$TMUX_SOCKET" > "$TMUX_SOCKET_FILE"
   check_helper_scripts
   write_sessions_file
+  write_roles_file
 }
 
 write_tmux_env_file() {
@@ -324,6 +347,20 @@ prepare_worktrees() {
   done
 }
 
+prepare_handoff_dirs() {
+  local i worktree_path
+  for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
+    worktree_path="${WORKTREE_PATHS[$i]}"
+    mkdir -p \
+      "$worktree_path/.swarmforge/handoffs/outbox/tmp" \
+      "$worktree_path/.swarmforge/handoffs/sent" \
+      "$worktree_path/.swarmforge/handoffs/failed" \
+      "$worktree_path/.swarmforge/handoffs/inbox/new" \
+      "$worktree_path/.swarmforge/handoffs/inbox/in_process" \
+      "$worktree_path/.swarmforge/handoffs/inbox/completed"
+  done
+}
+
 sync_worktree_scripts() {
   local i worktree_path role_scripts_dir role_state_dir
   for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
@@ -338,6 +375,7 @@ sync_worktree_scripts() {
     cp -R "$SCRIPT_DIR/." "$role_scripts_dir/"
     mkdir -p "$role_state_dir/notify"
     cp "$SESSIONS_FILE" "$role_state_dir/sessions.tsv"
+    cp "$ROLES_FILE" "$role_state_dir/roles.tsv"
     cp "$TMUX_SOCKET_FILE" "$role_state_dir/tmux-socket"
     cp "$TMUX_ENV_FILE" "$role_state_dir/tmux-env"
   done
@@ -442,8 +480,29 @@ choose_cleanup_owner() {
   CLEANUP_OWNER_INDEX=1
 }
 
+stop_handoff_daemon() {
+  local pid_file="$DAEMON_DIR/handoffd.pid"
+  local pid
+
+  if [[ ! -f "$pid_file" ]]; then
+    return
+  fi
+
+  pid="$(< "$pid_file")"
+  if [[ "$pid" == <-> ]]; then
+    kill -TERM "$pid" 2>/dev/null || true
+  fi
+}
+
+start_handoff_daemon() {
+  rm -f "$DAEMON_DIR/stop"
+  nohup "$SCRIPT_DIR/handoffd.bb" "$WORKING_DIR" > "$HANDOFF_DAEMON_LOG" 2>&1 &
+  echo -e "${GREEN}Started handoff daemon.${RESET}"
+}
+
 check_dependency tmux
 check_dependency git
+check_dependency bb
 detect_tmux_base_indexes
 initialize_git_repo
 ensure_runtime_git_excludes
@@ -451,10 +510,12 @@ parse_config
 check_backend_dependencies
 prepare_workspace
 prepare_worktrees
+prepare_handoff_dirs
 choose_cleanup_owner
 TERMINAL_BACKEND="$(detect_terminal_backend)"
 load_terminal_backend "$TERMINAL_BACKEND"
 
+stop_handoff_daemon
 local_session=""
 for local_session in "${SESSIONS[@]}"; do
   [[ -n "$local_session" ]] || continue
@@ -477,6 +538,7 @@ for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
 done
 write_tmux_env_file
 sync_worktree_scripts
+start_handoff_daemon
 
 echo -e "${GREEN}Starting agents...${RESET}"
 for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
@@ -491,7 +553,7 @@ for (( i = 1; i <= ${#ROLES[@]}; i++ )); do
   echo -e "  ${DISPLAY_NAMES[$i]}: ${SESSIONS[$i]}"
 done
 echo ""
-echo -e "${GREEN}Tip: Write .swarmforge/notify/request, then run notify-agent.sh while the swarm is running.${RESET}"
+echo -e "${GREEN}Tip: Write a handoff draft and run swarm_handoff.sh while the swarm is running.${RESET}"
 echo -e "${GREEN}Tip: Reattach manually with 'tmux -S $TMUX_SOCKET attach-session -t <session-name>' if needed.${RESET}"
 echo ""
 
