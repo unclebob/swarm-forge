@@ -149,16 +149,20 @@ handoff_set_header() {
 
 handoff_print_task() {
   local file="$1"
-  local from type priority
+  local from type priority task_name
 
   from="$(handoff_header_field from "$file" || echo "unknown")"
   type="$(handoff_header_field type "$file" || echo "unknown")"
   priority="$(handoff_header_field priority "$file" || echo "50")"
+  task_name="$(handoff_header_field task "$file" || true)"
 
   echo "TASK: $file"
   echo "FROM: $from"
   echo "TYPE: $type"
   echo "PRIORITY: $priority"
+  if [[ -n "$task_name" ]]; then
+    echo "TASK_NAME: $task_name"
+  fi
   echo "PAYLOAD:"
   handoff_body "$file"
 }

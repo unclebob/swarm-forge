@@ -38,6 +38,7 @@ priority: NN
 type: git_handoff
 to: <role>[,<role>...]
 priority: NN
+task: <short-stable-task-name>
 commit: <10-character-commit-abbrev>
 ```
 
@@ -45,6 +46,9 @@ commit: <10-character-commit-abbrev>
   functional project change. Complete the inbound task instead.
 - Treat manifest-only, audit-only, generated metadata, formatting-only, and
   other non-functional churn as no forwardable change.
+- Use the stable task name assigned by the specifier when forwarding work for
+  the same task. If the handoff starts new work, invent a short stable task
+  name.
 - For `note`, write:
 
 ```text
@@ -65,6 +69,8 @@ message: <one line, max 80 chars>
   your role.
 - If it prints `NO_TASK`, stop waiting for work.
 - If it prints `TASK: <path>`, treat the printed `PAYLOAD` as the task.
+- If it prints `TASK_NAME: <name>`, use that as the stable task name for any
+  forwardable work from that task.
 - If it prints `BATCH: <path>`, treat each printed `BATCH_ITEM` as part of the
   current batch in helper-delivered order.
 - Use only the task information printed by the helper scripts.

@@ -109,6 +109,7 @@ recipient: cleaner
 priority: 50
 type: git_handoff
 role: coder
+task: task-1-cave-setup
 commit: a1b2c3d9
 created_at: 2026-06-15T14:05:31Z
 enqueued_at: 2026-06-15T14:05:32Z
@@ -155,6 +156,7 @@ Draft:
 type: git_handoff
 to: cleaner
 priority: 50
+task: task-1-cave-setup
 commit: a1b2c3d9e8
 ```
 
@@ -166,8 +168,9 @@ Re-read your role and constitution.
 merge_and_process coder a1b2c3d9
 ```
 
-The script validates and canonicalizes the commit abbreviation before queuing
-the handoff.
+The script validates the task name and canonicalizes the commit abbreviation
+before queuing the handoff. The task name is a short, stable human-readable
+name that follows the work through downstream git handoffs for the same task.
 
 A role must not send or forward a `git_handoff` when the received commit
 produces no functional project change. Manifest-only, audit-only, generated
@@ -228,6 +231,7 @@ Responsibilities:
 - Validate `git_handoff` commits as real, unambiguous commits.
 - Canonicalize valid commit abbreviations.
 - Generate `role` from the current sender role for `git_handoff`.
+- Preserve `task` from the draft for `git_handoff`.
 - Generate the canonical body.
 - Atomically install the completed file into `outbox/`.
 
@@ -270,6 +274,7 @@ Expected git_handoff format:
 type: git_handoff
 to: cleaner
 priority: 50
+task: <short-stable-task-name>
 commit: <commit-abbrev>
 ```
 
@@ -369,6 +374,7 @@ TASK: .swarmforge/handoffs/inbox/in_process/00_20260615T140531Z_000042_from_arch
 FROM: architect
 TYPE: git_handoff
 PRIORITY: 00
+TASK_NAME: task-1-cave-setup
 PAYLOAD:
 Re-read your role and constitution.
 

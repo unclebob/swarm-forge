@@ -17,6 +17,7 @@ priority: NN
 type: git_handoff
 to: <role>[,<role>...]
 priority: NN
+task: <short-stable-task-name>
 commit: <10-char-commit-abbrev>
 
 type: note
@@ -62,7 +63,7 @@ typeset -A HEADERS=()
 typeset -a ERRORS=()
 typeset -a ORDERED_FIELDS=()
 typeset -a RESERVED_FIELDS=(id from role recipient created_at enqueued_at dequeued_at completed_at)
-typeset -a ALLOWED_FIELDS=(type to priority commit message)
+typeset -a ALLOWED_FIELDS=(type to priority task commit message)
 
 line_no=0
 body_seen=0
@@ -106,6 +107,7 @@ TYPE="${HEADERS[type]:-}"
 TO="${HEADERS[to]:-}"
 PRIORITY="${HEADERS[priority]:-}"
 COMMIT="${HEADERS[commit]:-}"
+TASK_NAME="${HEADERS[task]:-}"
 NOTE_MESSAGE="${HEADERS[message]:-}"
 
 [[ -n "$TYPE" ]] || ERRORS+=("Missing required header 'type'.")
@@ -147,7 +149,7 @@ fi
 for field in "${ORDERED_FIELDS[@]}"; do
   case "$TYPE:$field" in
     awake:type|awake:to|awake:priority) ;;
-    git_handoff:type|git_handoff:to|git_handoff:priority|git_handoff:commit) ;;
+    git_handoff:type|git_handoff:to|git_handoff:priority|git_handoff:task|git_handoff:commit) ;;
     note:type|note:to|note:priority|note:message) ;;
     *) ERRORS+=("Header '$field' is not allowed for type '$TYPE'.") ;;
   esac
@@ -155,6 +157,13 @@ done
 
 CANONICAL_COMMIT=""
 if [[ "$TYPE" == "git_handoff" ]]; then
+  if [[ -z "$TASK_NAME" ]]; then
+    ERRORS+=("Missing required header 'task' for git_handoff.")
+  elif [[ "$TASK_NAME" == *$'\n'* ]]; then
+    ERRORS+=("Header 'task' must be one line.")
+  elif (( ${#TASK_NAME} > 80 )); then
+    ERRORS+=("Header 'task' must be no longer than 80 characters; got ${#TASK_NAME}.")
+  fi
   if [[ -z "$COMMIT" ]]; then
     ERRORS+=("Missing required header 'commit' for git_handoff.")
   elif [[ "$COMMIT" != [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F] ]]; then
@@ -174,6 +183,10 @@ if [[ "$TYPE" == "git_handoff" ]]; then
   fi
 elif [[ -n "$COMMIT" ]]; then
   ERRORS+=("Header 'commit' is only allowed for git_handoff.")
+fi
+
+if [[ "$TYPE" != "git_handoff" && -n "$TASK_NAME" ]]; then
+  ERRORS+=("Header 'task' is only allowed for git_handoff.")
 fi
 
 if [[ "$TYPE" == "note" ]]; then
@@ -226,6 +239,7 @@ esac
   echo "type: $TYPE"
   if [[ "$TYPE" == "git_handoff" ]]; then
     echo "role: $SENDER"
+    echo "task: $TASK_NAME"
     echo "commit: $CANONICAL_COMMIT"
   fi
   if [[ "$TYPE" == "note" ]]; then
