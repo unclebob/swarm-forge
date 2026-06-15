@@ -12,3 +12,7 @@
 
 ## Failure Conditions
 - If the expected git layout or assigned worktree is missing, stop and report instead of silently working in the wrong place.
+
+## Idle Gate
+- Before going idle, run `agent-retro`.
+- Wait for a handoff. Do not act without one.

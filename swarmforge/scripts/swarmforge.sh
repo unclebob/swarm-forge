@@ -395,6 +395,7 @@ sync_worktree_scripts() {
     cp "$SESSIONS_FILE" "$role_state_dir/sessions.tsv"
     cp "$TMUX_SOCKET_FILE" "$role_state_dir/tmux-socket"
     cp "$TMUX_ENV_FILE" "$role_state_dir/tmux-env"
+    link_curator_skills "$worktree_path"
   done
 }
 
@@ -664,6 +665,20 @@ ensure_skills_installed() {
   install_skills
 }
 
+link_curator_skills() {
+  local target_root="${1:-$WORKING_DIR}"
+  local agents_skills_dir="$target_root/.agents/skills"
+  local claude_skills_dir="$target_root/.claude/skills"
+  [[ -d "$agents_skills_dir" ]] || return 0
+  mkdir -p "$claude_skills_dir"
+  for skill_dir in "$agents_skills_dir"/*/; do
+    local skill_name
+    skill_name="$(basename "$skill_dir")"
+    [[ -e "$claude_skills_dir/$skill_name" ]] && continue
+    ln -sfn "../../.agents/skills/$skill_name" "$claude_skills_dir/$skill_name"
+  done
+}
+
 choose_cleanup_owner() {
   CLEANUP_OWNER_INDEX=1
 }
@@ -677,6 +692,7 @@ install_shared_constitution_articles "$WORKING_DIR"
 parse_config
 check_backend_dependencies
 ensure_skills_installed
+link_curator_skills
 
 if [[ ! -f "$STATE_DIR/setup-complete" ]]; then
   echo -e "${RED}Error:${RESET} project is not swarm-ready. Run /setup-swarm first." >&2

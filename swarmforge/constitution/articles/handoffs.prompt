@@ -28,7 +28,7 @@
 - Start every handoff body with: `Re-read your role and constitution.`
 - The specifier invents a short, stable handoff name for each accepted specification handoff.
 - Every later handoff for that work must include the specifier handoff name.
-- Handoff bodies must report only essential state, not prescribe process. After the opening line, include exactly this field and no other prose: specifier handoff name.
+- Handoff bodies must report only essential state, not prescribe process. After the opening line, include exactly this field and no other prose: specifier handoff name. Back-routes must also include the role-specified diagnostic fields.
 - Do not tell the receiving role how to do its job, repeat your process, or ask it to continue sender-owned responsibilities. The normal request is: `Apply your own role rules to this state.`
 
 ## Receiving Handoffs
