@@ -20,6 +20,11 @@ priority: 50
   - `awake`
   - `git_handoff`
   - `note`
+- Do not send `note` handoffs unless the user, role prompt, or constitution
+  explicitly directs you to send one.
+- When blocked by ambiguity, contradiction, or test/specification conflict,
+  stop and ask for clarification; do not send a `note` handoff unless one of
+  the explicit authorities above directed that note.
 - For `awake`, write:
 
 ```text
@@ -37,6 +42,10 @@ priority: NN
 commit: <10-character-commit-abbrev>
 ```
 
+- Do not send or forward a `git_handoff` when the received commit produces no
+  functional project change. Complete the inbound task instead.
+- Treat manifest-only, audit-only, generated metadata, formatting-only, and
+  other non-functional churn as no forwardable change.
 - For `note`, write:
 
 ```text
@@ -52,12 +61,15 @@ message: <one line, max 80 chars>
 - Do not hand-edit, merge, stage, or commit handoff runtime state.
 
 ## Receiving Handoffs
-- When notified, run `ready_for_next_task.sh`.
+- When notified, run `ready_for_next.sh`.
+- `ready_for_next.sh` dispatches to the task helper configured for your role.
 - If it prints `NO_TASK`, stop waiting for work.
 - If it prints `TASK: <path>`, treat the printed `PAYLOAD` as the task.
 - Use only the task information printed by the helper scripts.
 - If a tmux wake-up arrives while already working on a task, ignore it.
-- When the task is fully complete, run `done_with_current_task.sh`.
-- If `done_with_current_task.sh` prints `TASK: <path>`, treat the printed `PAYLOAD` as the next task.
-- If `done_with_current_task.sh` prints `NO_TASK`, stop waiting for work.
-- On restart, run `ready_for_next_task.sh` and follow its output.
+- When the task is fully complete, run `done_with_current.sh`.
+- `note` handoffs are tasks too; after reading or acting on a note, run
+  `done_with_current.sh` before accepting any other handoff.
+- If `done_with_current.sh` prints `TASK: <path>`, treat the printed `PAYLOAD` as the next task.
+- If `done_with_current.sh` prints `NO_TASK`, stop waiting for work.
+- On restart, run `ready_for_next.sh` and follow its output.
