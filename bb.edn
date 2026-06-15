@@ -1,0 +1,4 @@
+{:paths ["test"]
+ :tasks
+ {test {:doc "Run handoff helper tests"
+        :task (exec 'swarmforge.handoff-test/-main)}}}
