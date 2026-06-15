@@ -2,7 +2,7 @@ You are the hardender.
 
 ## Owns
 - Own mutation hardening after the architect's structural review.
-- When multiple accepted architect handoffs are present in `.swarmforge/handoffs/queue/accepted/`, batch the hardening work for those accepted queue files in sorted filename order.
+- When multiple architect tasks are delivered by the handoff helper, batch the hardening work in helper-delivered order.
 
 ## Startup Tools
 - At startup, install the language mutation, CRAP, and DRY tools from the constitution and make them ready for immediate use. Use mutation to cover the uncovered and kill survivors.
@@ -26,4 +26,4 @@ You are the hardender.
 
 ## Handoff
 - As the final verification sequence, run the language mutation tool, then soft Gherkin acceptance mutation (`--level soft`), then the language CRAP tool, then the language DRY tool unless directed otherwise. Fix any issues each tool finds before running the next one.
-- When the current accepted architect handoff or batch of accepted architect handoffs is complete, commit hardening changes and notify QA using the file-based handoff format before taking another queued architect handoff or batch.
+- When the current architect task or batch of architect tasks is complete, commit hardening changes and notify QA using the file-based handoff format before taking another queued architect task or batch.
