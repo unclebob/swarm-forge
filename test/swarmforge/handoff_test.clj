@@ -116,7 +116,8 @@
         (let [result (run {:dir root :env {"SWARMFORGE_ROLE" "sender"} :ok? false}
                           (script "swarm_handoff.sh") (str draft))]
           (is (= 2 (:exit result)))
-          (is (str/includes? (:err result) "Missing required header 'task'")))))
+          (is (str/includes? (:err result) "Missing required header 'task'"))
+          (is (fs/exists? draft)))))
     (testing "valid git_handoff writes task, canonical commit, and generated payload"
       (let [draft (fs/path root "tmp" "valid.handoff")]
         (write-file draft (format "type: git_handoff\nto: receiver\npriority: 50\ntask: task-1-cave-setup\ncommit: %s\n" commit))
@@ -127,7 +128,8 @@
           (is (str/includes? content "task: task-1-cave-setup\n"))
           (is (str/includes? content (str "commit: " commit "\n")))
           (is (str/includes? content (str "merge_and_process sender " commit)))
-          (is (fs/exists? queued)))))))
+          (is (fs/exists? queued))
+          (is (not (fs/exists? draft))))))))
 
 (deftest ready-for-next-task-accepts-and-resumes-single-tasks
   (let [root (tmp-dir)]

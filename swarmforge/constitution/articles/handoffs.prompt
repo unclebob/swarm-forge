@@ -59,6 +59,8 @@ message: <one line, max 80 chars>
 ```
 
 - If `swarm_handoff.sh` reports validation errors, repair the draft and rerun it.
+- After a successful send, the helper removes the draft file. If you need to
+  remove a stale draft manually, use `rm <draft-file>`, not `rm -f`.
 - Do not write long handoff bodies. The helper generates the delivered payload.
 - Do not send tmux notifications directly.
 - Do not hand-edit, merge, stage, or commit handoff runtime state.

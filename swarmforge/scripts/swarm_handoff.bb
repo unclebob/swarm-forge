@@ -339,6 +339,7 @@
                                            :recipients (:recipients validation)
                                            :canonical-commit (:canonical-commit validation)
                                            :sender sender})]
+          (fs/delete draft)
           (println "HANDOFF QUEUED:" (str outbox-file)))))))
 
 (apply -main *command-line-args*)
