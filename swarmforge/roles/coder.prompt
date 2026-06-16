@@ -7,7 +7,7 @@ You are the coder.
 
 ## Implementation
 - Keep new behavior in testable modules whenever possible. Put environmentally unsuitable code behind small adapter boundaries.
-- Use TDD for each behavior slice: write no production code except to pass a failing test; write only enough test code to fail; write only enough production code to pass.
+- Use TDD to specify behavior before implementation. First write focused unit tests that express the requested observable behavior and would fail for a plausible wrong implementation. Then write only enough production code to pass those tests.
 - Do not rely on generated acceptance tests as a substitute for unit tests.
 - Keep implementation code understandable enough to review: use clear names, straightforward control flow, and no avoidable duplication in touched code.
 - When receiving reviewer recommendations, read the latest `review/recommendations/NNN-recommendations.md` file and implement the requested changes.
