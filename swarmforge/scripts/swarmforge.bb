@@ -14,6 +14,12 @@
 (def bold "\u001b[1m")
 (def reset "\u001b[0m")
 
+
+;; Forward-declare symbols defined in fork.bb (loaded at runtime via load-file before -main).
+(declare sparse-checkout-setup! link-curator-skills!
+         write-persona-skill-file! write-worktree-settings!
+         ensure-skills-installed!)
+
 (defn sh [& args]
   (apply process/sh args))
 
@@ -141,11 +147,15 @@
           (if (or (str/blank? line) (str/starts-with? line "#"))
             (recur (next lines) rows roles worktrees)
             (let [fields (str/split line #"\s+")]
-              (when (or (< (count fields) 4) (> (count fields) 5))
+              (when (< (count fields) 4)
                 (fail! (str red "Error:" reset " Invalid config line " line-no ": " line)))
-              (let [[keyword role agent worktree receive-mode] fields
+              (let [[keyword role agent worktree receive-mode & kv-fields] fields
                     agent (str/lower-case agent)
-                    receive-mode (or receive-mode "task")]
+                    receive-mode (or receive-mode "task")
+                    kv-map (into {} (for [kv kv-fields
+                                         :let [sep (str/index-of kv "=")]
+                                         :when sep]
+                                     [(subs kv 0 sep) (subs kv (inc sep))]))]
                 (when-not (= "window" keyword)
                   (fail! (str red "Error:" reset " Unknown config directive on line " line-no ": " keyword)))
                 (when (str/includes? role "_")
@@ -171,7 +181,10 @@
                            :display-name (display-name-for-role role)
                            :worktree-name worktree
                            :worktree-path worktree-path
-                           :receive-mode receive-mode}]
+                           :receive-mode receive-mode
+                           :model (get kv-map "model" "")
+                           :effort (get kv-map "effort" "")
+                           :advisor (get kv-map "advisor" "")}]
                   (recur (next lines)
                          (conj rows row)
                          (conj roles role)
@@ -244,7 +257,8 @@
           :when (not (#{"none" "master"} worktree-name))]
     (when-not (or (fs/exists? (fs/path worktree-path ".git"))
                   (fs/directory? (fs/path worktree-path ".git")))
-      (sh "git" "-C" (str (:working-dir ctx)) "worktree" "add" "--force" "-B" branch-name (str worktree-path) "HEAD"))))
+      (sh "git" "-C" (str (:working-dir ctx)) "worktree" "add" "--force" "-B" branch-name (str worktree-path) "HEAD"))
+    (sparse-checkout-setup! worktree-path (:qa-holdout-path ctx) (:role row))))
 
 (defn prepare-handoff-dirs! [ctx]
   (doseq [row (:roles ctx)
@@ -271,7 +285,8 @@
       (fs/copy (:sessions-file ctx) (fs/path role-state-dir "sessions.tsv") {:replace-existing true})
       (fs/copy (:roles-file ctx) (fs/path role-state-dir "roles.tsv") {:replace-existing true})
       (fs/copy (:tmux-socket-file ctx) (fs/path role-state-dir "tmux-socket") {:replace-existing true})
-      (fs/copy (:tmux-env-file ctx) (fs/path role-state-dir "tmux-env") {:replace-existing true}))))
+      (fs/copy (:tmux-env-file ctx) (fs/path role-state-dir "tmux-env") {:replace-existing true})
+      (link-curator-skills! worktree-path))))
 
 (defn check-dependency! [command]
   (when-not (command-exists? command)
@@ -307,10 +322,22 @@
     (write-agent-instruction-file! role prompt-file)
     (cond-> (str base
                 (case agent
-                  "claude" (str "claude --append-system-prompt-file " (sq (str prompt-file)) " --permission-mode acceptEdits -n " (sq (str "SwarmForge " display)) " \"$(cat " (sq (str prompt-file)) ")\"")
-                  "codex" (str "codex -C " (sq (str role-worktree)) " \"$(cat " (sq (str prompt-file)) ")\"")
-                  "copilot" (str "copilot -C " (sq (str role-worktree)) " --name " (sq (str "SwarmForge " display)) " -i \"$(cat " (sq (str prompt-file)) ")\"")
-                  "grok" (str "grok --cwd " (sq (str role-worktree)) " --permission-mode acceptEdits --rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\"")))
+                  "claude" (str "claude"
+                                (when (seq (:model row)) (str " --model " (sq (:model row))))
+                                (when (seq (:effort row)) (str " --effort " (sq (:effort row))))
+                                " --append-system-prompt-file " (sq (str prompt-file))
+                                " --permission-mode auto -n " (sq (str "SwarmForge " display)))
+                  "codex" (str "codex"
+                               (when (seq (:model row)) (str " -c model=" (sq (:model row))))
+                               " -C " (sq (str role-worktree)) " \"$(cat " (sq (str prompt-file)) ")\"")
+                  "copilot" (str "copilot"
+                                 (when (seq (:model row)) (str " --model " (sq (:model row))))
+                                 (when (seq (:effort row)) (str " --effort " (sq (:effort row))))
+                                 " -C " (sq (str role-worktree)) " --name " (sq (str "SwarmForge " display)) " -i \"$(cat " (sq (str prompt-file)) ")\"")
+                  "grok" (str "grok"
+                              (when (seq (:model row)) (str " --model " (sq (:model row))))
+                              (when (seq (:effort row)) (str " --effort " (sq (:effort row))))
+                              " --cwd " (sq (str role-worktree)) " --permission-mode auto --rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\"")))
       (= index 0)
       (str "; exit_code=$?; SWARMFORGE_TERMINAL_BACKEND=" (sq (:terminal-backend ctx))
            " nohup " (sq (str (fs/path (:script-dir ctx) "swarm-cleanup.sh")))
@@ -324,6 +351,8 @@
         display (:display-name row)
         prompt-file (fs/path (:prompts-dir ctx) (str (:role row) ".md"))
         command (launch-command ctx index row)]
+    (write-persona-skill-file! ctx (:role row) (:worktree-path row))
+    (write-worktree-settings! (:worktree-path row) (or (:advisor row) ""))
     (sh "tmux" "-S" (:tmux-socket ctx) "send-keys" "-t"
         (tmux-agent-target display (:tmux-pane-base-index ctx) session)
         command "Enter")
@@ -430,7 +459,8 @@
      :tmux-socket-file (fs/path state-dir "tmux-socket")
      :tmux-env-file (fs/path state-dir "tmux-env")
      :tmux-window-base-index 0
-     :tmux-pane-base-index 0}))
+     :tmux-pane-base-index 0
+     :qa-holdout-path (or (System/getenv "SWARMFORGE_QA_HOLDOUT_PATH") "qa-e2e")}))
 
 (defn prepare-ctx [ctx]
   (-> ctx
@@ -456,6 +486,9 @@
     (let [ctx (prepare-ctx ctx)]
       (check-backend-dependencies! ctx)
       (prepare-workspace! ctx)
+      (ensure-skills-installed! ctx)
+      (when-not (fs/exists? (fs/path (:state-dir ctx) "setup-complete"))
+        (fail! (str red "Error:" reset " project is not swarm-ready. Run /setup-swarm first.")))
       (prepare-worktrees! ctx)
       (prepare-handoff-dirs! ctx)
       (let [ctx (assoc ctx :terminal-backend (detect-terminal-backend))]
@@ -517,5 +550,7 @@
     "--test-launch-command" (test-launch-command! (or (second args) (System/getProperty "user.dir")) (nth args 2))
     "--test-agent-start-delay" (println (env-long "SWARMFORGE_AGENT_START_DELAY_MS" 1500))
     (run-main! (or (first args) (System/getProperty "user.dir")))))
+
+(load-file (str (fs/parent *file*) "/fork.bb"))
 
 (apply -main *command-line-args*)
