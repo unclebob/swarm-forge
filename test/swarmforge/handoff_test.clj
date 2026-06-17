@@ -2,11 +2,19 @@
   (:require [babashka.fs :as fs]
             [clojure.java.shell :as sh]
             [clojure.string :as str]
-            [clojure.test :refer [deftest is run-tests testing]]))
+            [clojure.test :refer [deftest is run-tests testing use-fixtures]]))
 
 (def repo-root (fs/cwd))
 (def scripts-dir (fs/path repo-root "swarmforge" "scripts"))
 (def temp-dirs (atom []))
+
+(use-fixtures :once
+  (fn [tests]
+    (try
+      (tests)
+      (finally
+        (doseq [dir @temp-dirs]
+          (fs/delete-tree dir))))))
 
 (defn script [name]
   (str (fs/path scripts-dir name)))
@@ -254,6 +262,4 @@
 
 (defn -main [& _]
   (let [{:keys [fail error]} (run-tests 'swarmforge.handoff-test)]
-    (doseq [dir @temp-dirs]
-      (fs/delete-tree dir))
     (System/exit (+ fail error))))

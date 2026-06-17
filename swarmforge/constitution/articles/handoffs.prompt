@@ -1,18 +1,5 @@
 # Handoff Rules
 
-## Startup Notification
-- After reading the constitution and your role prompt at startup, send an awake notification to `specifier` unless your role prompt says otherwise.
-- Write a draft file with:
-
-```text
-type: awake
-to: specifier
-priority: 50
-```
-
-- Run `swarm_handoff.sh <draft-file>`.
-- This startup notification is only a presence signal; it does not replace any role-specific handoff rule.
-
 ## Sending Handoffs
 - Write a draft handoff file with only structured headers, then run `swarm_handoff.sh <draft-file>`.
 - Use only these message types:
@@ -46,9 +33,8 @@ commit: <10-character-commit-abbrev>
   functional project change. Complete the inbound task instead.
 - Treat manifest-only, audit-only, generated metadata, formatting-only, and
   other non-functional churn as no forwardable change.
-- Use the stable task name assigned by the specifier when forwarding work for
-  the same task. If the handoff starts new work, invent a short stable task
-  name.
+- Preserve the received task name when forwarding work for the same task. If the
+  handoff starts new work, invent a short stable task name.
 - For `note`, write:
 
 ```text

@@ -1,4 +1,10 @@
 {:paths ["test"]
  :tasks
- {test {:doc "Run handoff helper tests"
-        :task (exec 'swarmforge.handoff-test/-main)}}}
+ {test {:doc "Run helper tests"
+        :task (do
+                (require 'clojure.test)
+                (require 'swarmforge.handoff-test)
+                (require 'swarmforge.script-test)
+                (let [{:keys [fail error]} (clojure.test/run-tests 'swarmforge.handoff-test
+                                                                    'swarmforge.script-test)]
+                  (System/exit (+ fail error))))}}}

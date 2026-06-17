@@ -18,9 +18,18 @@ It provides a shared structure for role-specific prompts, worktree assignment, t
 
 The runnable SwarmForge configurations live on dedicated branches. Each branch contains the `swarmforge/swarmforge.conf`, local constitution articles, and role prompts for one workflow. At startup, its `./swarm` wrapper copies the shared operational scripts and shared constitution articles from `main` when they are not already present, then launches that branch's local configuration.
 
+### `two-pack`
+
+`two-pack` is the quick backend workflow. Use it for small tasks that benefit from fast coding without the overhead of Gherkin and acceptance testing, while still preserving backend refactoring and hardening.
+
+- `coder` implements requested behavior with TDD and unit tests.
+- `cleaner` batches coder handoffs and performs cleanup, CRAP and DRY review, architectural review, encapsulation and separation-of-concerns fixes, and language mutation hardening.
+
+The normal flow is `coder` -> `cleaner` -> `coder`. Use this branch when you want a tight implementation/refinement loop without specification, QA, property-test, or acceptance-test roles.
+
 ### `four-pack`
 
-`four-pack` is the compact workflow. It keeps the swarm small while preserving a complete delivery path:
+`four-pack` is the compact specification workflow. Use it for moderate projects that require Gherkin specification and some architectural consideration without splitting every quality gate into its own agent:
 
 - `specifier` turns user intent into precise Gherkin acceptance specifications and asks for approval before handoff.
 - `coder` implements approved behavior slices with TDD, unit tests, and generated acceptance tests.
@@ -31,7 +40,7 @@ The normal flow is `specifier` -> `coder` -> `refactorer` -> `architect` -> `spe
 
 ### `six-pack`
 
-`six-pack` is the full workflow. It separates each major quality gate into its own role:
+`six-pack` is the full workflow. Use it for major projects that require full specification, up-front QA, backend verification, and significant architectural consideration. It separates each major quality gate into its own role:
 
 - `specifier` turns user intent into accepted Gherkin specifications and end-to-end QA procedures.
 - `coder` implements approved behavior slices with TDD, unit tests, and generated acceptance tests.
@@ -61,7 +70,7 @@ BRANCH=four-pack
 curl -L "https://github.com/gabadi/swarm-forge/archive/refs/heads/${BRANCH}.tar.gz" | tar -xz --strip-components=1
 ```
 
-Use `BRANCH=six-pack` instead when you want the six-agent workflow. Do not use `main` for this command; `main` is documentary and stores the shared operational scripts, while the runnable branches provide the configurations and prompts intended for projects.
+Use `BRANCH=two-pack` for the quick two-agent workflow, `BRANCH=four-pack` for the compact specification workflow, or `BRANCH=six-pack` for the full six-agent workflow. Do not use `main` for this command; `main` is documentary and stores the shared operational scripts, while the runnable branches provide the configurations and prompts intended for projects.
 
 After copying a runnable branch, run `./swarm` once to bootstrap the scripts and install skills:
 
