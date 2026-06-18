@@ -230,12 +230,19 @@ The durable handoff files and lifecycle headers replace the old logbook and rese
 `swarmforge/swarmforge.conf` defines the swarm window-by-window. Each line has this form:
 
 ```conf
-window <role> <agent> <worktree> [task|batch] [key=value...]
+window <role> <agent> <worktree> [task|batch] [extra-cli-args...] [key=value...]
 ```
 
 The optional receive mode defaults to `task`. Use `batch` for roles that should consume all currently queued equal-priority handoffs as one batch.
 
-Optional per-role overrides are expressed as `key=value` pairs after the receive mode:
+Any fields after the receive mode are passed directly to the agent CLI as additional arguments. If you omit the receive mode, extra arguments may start at the fifth field:
+
+```conf
+window coder copilot wt-coder --yolo
+window architect claude wt-arch task --dangerously-skip-permissions
+```
+
+Optional per-role overrides are expressed as `key=value` pairs after the receive mode (or after extra args):
 
 | Key | Applies to | Effect |
 |-----|-----------|--------|

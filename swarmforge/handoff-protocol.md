@@ -46,10 +46,11 @@ the audit trail and restart state.
 `swarmforge.conf` window lines may include an optional receive mode:
 
 ```text
-window <role> <agent> <worktree> [task|batch]
+window <role> <agent> <worktree> [task|batch] [extra-cli-args...]
 ```
 
-When omitted, receive mode defaults to `task`. The launcher writes the
+When omitted, receive mode defaults to `task`. Any fields after the receive
+mode are passed to the agent CLI as additional arguments. The launcher writes the
 normalized mode into `.swarmforge/roles.tsv`, and agent-facing receive helpers
 read that runtime file rather than reparsing `swarmforge.conf`.
 

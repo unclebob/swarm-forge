@@ -111,6 +111,21 @@
       (finally
         (fs/delete-tree root)))))
 
+(deftest swarmforge-uses-portable-tmux-socket-dir
+  (let [root (tmp-dir)]
+    (try
+      (write-file (fs/path root "swarmforge/constitution.prompt")
+                  "Read articles.\n")
+      (write-file (fs/path root "swarmforge/swarmforge.conf")
+                  "window coder codex master\n")
+      (write-file (fs/path root "swarmforge/roles/coder.prompt") "coder\n")
+      (run {:dir root} (script "swarmforge.bb") "--test-parse" (str root))
+      (let [socket-path (str/trim (slurp (str (fs/path root ".swarmforge/tmux-socket"))))]
+        (is (str/starts-with? socket-path "/tmp/swarmforge-"))
+        (is (not (str/starts-with? socket-path "/private/tmp/"))))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest swarmforge-launcher-rejects-invalid-config
   (let [root (tmp-dir)]
     (try
@@ -165,6 +180,38 @@
     (is (= "2750" (str/trim (:out configured-result))))
     (is (= "1500" (str/trim (:out invalid-result))))))
 
+(deftest swarmforge-launcher-parses-extra-cli-args
+  (let [root (tmp-dir)]
+    (try
+      (write-file (fs/path root "swarmforge/constitution.prompt")
+                  "Read articles.\n")
+      (write-file (fs/path root "swarmforge/swarmforge.conf")
+                  (str "window coder copilot master --yolo\n"
+                       "window cleaner copilot cleaner batch --allow-all-tools\n"))
+      (write-file (fs/path root "swarmforge/roles/coder.prompt") "coder\n")
+      (write-file (fs/path root "swarmforge/roles/cleaner.prompt") "cleaner\n")
+      (let [result (run {:dir root} (script "swarmforge.bb") "--test-parse" (str root))]
+        (is (str/includes? (:out result) "coder Coder"))
+        (is (str/includes? (:out result) "task --yolo"))
+        (is (str/includes? (:out result) "batch --allow-all-tools")))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest copilot-launch-command-passes-extra-cli-args
+  (let [root (tmp-dir)]
+    (try
+      (let [result (run {:dir root}
+                        (script "swarmforge.bb")
+                        "--test-launch-command"
+                        (str root)
+                        "copilot"
+                        "--yolo")
+            command (:out result)]
+        (is (str/includes? command "copilot -C "))
+        (is (re-find #"--name 'SwarmForge Coder' --yolo -i" command)))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest grok-launch-command-passes-initial-prompt
   (let [root (tmp-dir)]
     (try
@@ -198,6 +245,22 @@
         (is (str/includes? state "2\tnew-b\tswarmforge-cleaner\tSwarmForge Cleaner"))
         (is (= "old-a\nnew-b\n" ids)))
       (finally
+        (fs/delete-tree root)))))
+
+(deftest swarmforge-detects-nonzero-pane-base-index
+  (let [root (tmp-dir)
+        sock (str root "/test.sock")
+        conf (fs/path root "tmux.conf")]
+    (try
+      (write-file conf "set -g base-index 1\nset -g pane-base-index 1\n")
+      (run {:dir root} "tmux" "-S" sock "-f" (str conf) "new-session" "-d" "-s" "probe" "sleep" "120")
+      (let [result (run {:dir root}
+                        (script "swarmforge.bb")
+                        "--test-tmux-base-indexes"
+                        sock)]
+        (is (= "1 1" (str/trim (:out result)))))
+      (finally
+        (run {:dir root :ok? false} "tmux" "-S" sock "kill-server")
         (fs/delete-tree root)))))
 
 (deftest swarm-cleanup-tolerates-missing-runtime-state

@@ -49,6 +49,7 @@
 
 (defn normalize-terminal-backend [backend]
   (case (str/lower-case backend)
+    ("iterm" "iterm2" "iterm.app") "iterm2"
     ("terminal" "terminal-app" "terminal.app") "terminal-app"
     ("windows" "windows-terminal" "wt") "windows-terminal"
     ("none" "current" "fallback") "none"
@@ -58,7 +59,9 @@
   (if-let [backend (System/getenv "SWARMFORGE_TERMINAL")]
     (normalize-terminal-backend backend)
     (cond
-      (command-exists? "osascript") "terminal-app"
+      (command-exists? "osascript") (if (= (System/getenv "TERM_PROGRAM") "iTerm.app")
+                                      "iterm2"
+                                      "terminal-app")
       (command-exists? "wt.exe") "windows-terminal"
       :else "none")))
 
@@ -80,7 +83,7 @@
 (defn tmux-option [tmux-socket option scope default-value]
   (let [args (case scope
                :session ["tmux" "-S" tmux-socket "show-options" "-gqv" option]
-               :window ["tmux" "-S" tmux-socket "show-window-options" "-gqv" option])
+               :window ["tmux" "-S" tmux-socket "show-options" "-gwqv" option])
         result (apply process/sh (concat [{:continue true}] args))
         value (str/trim (:out result))]
     (if (re-matches #"[0-9]+" value)
@@ -149,13 +152,21 @@
             (let [fields (str/split line #"\s+")]
               (when (< (count fields) 4)
                 (fail! (str red "Error:" reset " Invalid config line " line-no ": " line)))
-              (let [[keyword role agent worktree receive-mode & kv-fields] fields
+              (let [[keyword role agent worktree & trailing] fields
                     agent (str/lower-case agent)
-                    receive-mode (or receive-mode "task")
-                    kv-map (into {} (for [kv kv-fields
+                    receive-mode (if (#{"task" "batch"} (first trailing))
+                                   (first trailing)
+                                   "task")
+                    raw-trailing (if (#{"task" "batch"} (first trailing))
+                                   (rest trailing)
+                                   trailing)
+                    kv-map (into {} (for [kv raw-trailing
                                          :let [sep (str/index-of kv "=")]
                                          :when sep]
-                                     [(subs kv 0 sep) (subs kv (inc sep))]))]
+                                     [(subs kv 0 sep) (subs kv (inc sep))]))
+                    extra-arg-tokens (remove #(str/index-of % "=") raw-trailing)
+                    extra-args (when (seq extra-arg-tokens)
+                                 (str/join " " extra-arg-tokens))]
                 (when-not (= "window" keyword)
                   (fail! (str red "Error:" reset " Unknown config directive on line " line-no ": " keyword)))
                 (when (str/includes? role "_")
@@ -182,6 +193,7 @@
                            :worktree-name worktree
                            :worktree-path worktree-path
                            :receive-mode receive-mode
+                           :extra-args extra-args
                            :model (get kv-map "model" "")
                            :effort (get kv-map "effort" "")
                            :advisor (get kv-map "advisor" "")}]
@@ -228,7 +240,7 @@
    "swarm-terminal-adapter.sh" "swarmforge.sh" "swarmforge.bb"])
 
 (def terminal-helpers
-  ["terminal-app.sh" "ghostty.sh" "windows-terminal.sh" "none.sh"])
+  ["terminal-app.sh" "iterm2.sh" "ghostty.sh" "windows-terminal.sh" "none.sh"])
 
 (defn check-helper-scripts! [ctx]
   (doseq [helper required-helpers]
@@ -306,6 +318,10 @@
         (str "Read swarmforge/constitution.prompt, then read every file it refers to recursively, and obey all of those instructions.\n"
              "Read swarmforge/roles/" role ".prompt, then read every file it refers to recursively, and follow all of those instructions.\n")))
 
+(defn extra-args-prefix [row]
+  (let [args (:extra-args row)]
+    (if (str/blank? args) "" (str args " "))))
+
 (defn launch-command [ctx index row]
   (let [role (:role row)
         agent (:agent row)
@@ -326,18 +342,19 @@
                                 (when (seq (:model row)) (str " --model " (sq (:model row))))
                                 (when (seq (:effort row)) (str " --effort " (sq (:effort row))))
                                 " --append-system-prompt-file " (sq (str prompt-file))
-                                " --permission-mode auto -n " (sq (str "SwarmForge " display)))
+                                " --permission-mode auto -n " (sq (str "SwarmForge " display))
+                                " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
                   "codex" (str "codex"
                                (when (seq (:model row)) (str " -c model=" (sq (:model row))))
-                               " -C " (sq (str role-worktree)) " \"$(cat " (sq (str prompt-file)) ")\"")
+                               " -C " (sq (str role-worktree)) " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
                   "copilot" (str "copilot"
                                  (when (seq (:model row)) (str " --model " (sq (:model row))))
                                  (when (seq (:effort row)) (str " --effort " (sq (:effort row))))
-                                 " -C " (sq (str role-worktree)) " --name " (sq (str "SwarmForge " display)) " -i \"$(cat " (sq (str prompt-file)) ")\"")
+                                 " -C " (sq (str role-worktree)) " --name " (sq (str "SwarmForge " display)) " " (extra-args-prefix row) "-i \"$(cat " (sq (str prompt-file)) ")\"")
                   "grok" (str "grok"
                               (when (seq (:model row)) (str " --model " (sq (:model row))))
                               (when (seq (:effort row)) (str " --effort " (sq (:effort row))))
-                              " --cwd " (sq (str role-worktree)) " --permission-mode auto --rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\"")))
+                              " --cwd " (sq (str role-worktree)) " --permission-mode auto " (extra-args-prefix row) "--rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\""))))
       (= index 0)
       (str "; exit_code=$?; SWARMFORGE_TERMINAL_BACKEND=" (sq (:terminal-backend ctx))
            " nohup " (sq (str (fs/path (:script-dir ctx) "swarm-cleanup.sh")))
@@ -435,7 +452,7 @@
         crc (java.util.zip.CRC32.)
         _ (.update crc (.getBytes (str working-dir) java.nio.charset.StandardCharsets/UTF_8))
         socket-id (str (.getValue crc))
-        tmux-socket-dir (fs/path "/private/tmp" (str "swarmforge-" (or (System/getenv "UID") (System/getProperty "user.name"))))
+        tmux-socket-dir (fs/path "/tmp" (str "swarmforge-" (or (System/getenv "UID") (System/getProperty "user.name"))))
         tmux-socket (str (fs/path tmux-socket-dir (str socket-id ".sock")))]
     {:working-dir working-dir
      :script-dir script-dir
@@ -471,7 +488,9 @@
   (let [ctx (prepare-ctx (context root))]
     (prepare-workspace! ctx)
     (doseq [row (:roles ctx)]
-      (println (str (:role row) " " (:display-name row) " " (:worktree-path row) " " (:receive-mode row))))
+      (println (str (:role row) " " (:display-name row) " " (:worktree-path row) " "
+                    (:receive-mode row)
+                    (when-let [extra (:extra-args row)] (str " " extra)))))
     (print (slurp (str (:roles-file ctx))))
     (print (slurp (str (:sessions-file ctx))))))
 
@@ -531,7 +550,12 @@
               (fs/exists? local-script-dir) (assoc :script-dir local-script-dir))]
     (println (terminal-call-out ctx "terminal_open_session" "swarmforge-specifier" "SwarmForge Specifier" ""))))
 
-(defn test-launch-command! [root agent]
+(defn test-tmux-base-indexes! [tmux-socket]
+  (let [ctx (detect-tmux-base-indexes {:tmux-socket tmux-socket
+                                        :tmux-socket-dir (str (fs/parent (fs/path tmux-socket)))})]
+    (println (:tmux-window-base-index ctx) (:tmux-pane-base-index ctx))))
+
+(defn test-launch-command! [root agent & [extra-args]]
   (let [ctx (assoc (context root) :terminal-backend "none")
         row {:role "coder"
              :agent agent
@@ -539,7 +563,8 @@
              :display-name "Coder"
              :worktree-name "master"
              :worktree-path (fs/path root)
-             :receive-mode "task"}]
+             :receive-mode "task"
+             :extra-args extra-args}]
     (fs/create-dirs (:prompts-dir ctx))
     (println (launch-command ctx 1 row))))
 
@@ -547,8 +572,11 @@
   (case (first args)
     "--test-parse" (test-parse! (or (second args) (System/getProperty "user.dir")))
     "--test-terminal-bridge" (test-terminal-bridge! (or (second args) (System/getProperty "user.dir")) (nth args 2))
-    "--test-launch-command" (test-launch-command! (or (second args) (System/getProperty "user.dir")) (nth args 2))
+    "--test-launch-command" (apply test-launch-command!
+                                     (or (second args) (System/getProperty "user.dir"))
+                                     (drop 2 args))
     "--test-agent-start-delay" (println (env-long "SWARMFORGE_AGENT_START_DELAY_MS" 1500))
+    "--test-tmux-base-indexes" (test-tmux-base-indexes! (second args))
     (run-main! (or (first args) (System/getProperty "user.dir")))))
 
 (load-file (str (fs/parent *file*) "/fork.bb"))
