@@ -157,14 +157,11 @@
                     receive-mode (if (#{"task" "batch"} (first trailing))
                                    (first trailing)
                                    "task")
-                    raw-trailing (if (#{"task" "batch"} (first trailing))
-                                   (rest trailing)
-                                   trailing)
-                    kv-map (into {} (for [kv raw-trailing
-                                         :let [sep (str/index-of kv "=")]
-                                         :when sep]
-                                     [(subs kv 0 sep) (subs kv (inc sep))]))
-                    extra-arg-tokens (remove #(str/index-of % "=") raw-trailing)
+                    extra-arg-tokens (if (#{"task" "batch"} (first trailing))
+                                       (rest trailing)
+                                       trailing)
+                    advisor (some #(when (str/starts-with? % "advisor=") (subs % 8)) extra-arg-tokens)
+                    extra-arg-tokens (remove #(str/starts-with? % "advisor=") extra-arg-tokens)
                     extra-args (when (seq extra-arg-tokens)
                                  (str/join " " extra-arg-tokens))]
                 (when-not (= "window" keyword)
@@ -194,9 +191,7 @@
                            :worktree-path worktree-path
                            :receive-mode receive-mode
                            :extra-args extra-args
-                           :model (get kv-map "model" "")
-                           :effort (get kv-map "effort" "")
-                           :advisor (get kv-map "advisor" "")}]
+                           :advisor (or advisor "")}]
                   (recur (next lines)
                          (conj rows row)
                          (conj roles role)
@@ -338,23 +333,10 @@
     (write-agent-instruction-file! role prompt-file)
     (cond-> (str base
                 (case agent
-                  "claude" (str "claude"
-                                (when (seq (:model row)) (str " --model " (sq (:model row))))
-                                (when (seq (:effort row)) (str " --effort " (sq (:effort row))))
-                                " --append-system-prompt-file " (sq (str prompt-file))
-                                " --permission-mode auto -n " (sq (str "SwarmForge " display))
-                                " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
-                  "codex" (str "codex"
-                               (when (seq (:model row)) (str " -c model=" (sq (:model row))))
-                               " -C " (sq (str role-worktree)) " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
-                  "copilot" (str "copilot"
-                                 (when (seq (:model row)) (str " --model " (sq (:model row))))
-                                 (when (seq (:effort row)) (str " --effort " (sq (:effort row))))
-                                 " -C " (sq (str role-worktree)) " --name " (sq (str "SwarmForge " display)) " " (extra-args-prefix row) "-i \"$(cat " (sq (str prompt-file)) ")\"")
-                  "grok" (str "grok"
-                              (when (seq (:model row)) (str " --model " (sq (:model row))))
-                              (when (seq (:effort row)) (str " --effort " (sq (:effort row))))
-                              " --cwd " (sq (str role-worktree)) " --permission-mode auto " (extra-args-prefix row) "--rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\""))))
+                  "claude" (str "claude --append-system-prompt-file " (sq (str prompt-file)) " --permission-mode auto -n " (sq (str "SwarmForge " display)) " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
+                  "codex" (str "codex -C " (sq (str role-worktree)) " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
+                  "copilot" (str "copilot -C " (sq (str role-worktree)) " --name " (sq (str "SwarmForge " display)) " " (extra-args-prefix row) "-i \"$(cat " (sq (str prompt-file)) ")\"")
+                  "grok" (str "grok --cwd " (sq (str role-worktree)) " --permission-mode auto " (extra-args-prefix row) "--rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\""))))
       (= index 0)
       (str "; exit_code=$?; SWARMFORGE_TERMINAL_BACKEND=" (sq (:terminal-backend ctx))
            " nohup " (sq (str (fs/path (:script-dir ctx) "swarm-cleanup.sh")))

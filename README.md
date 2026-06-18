@@ -230,7 +230,7 @@ The durable handoff files and lifecycle headers replace the old logbook and rese
 `swarmforge/swarmforge.conf` defines the swarm window-by-window. Each line has this form:
 
 ```conf
-window <role> <agent> <worktree> [task|batch] [extra-cli-args...] [key=value...]
+window <role> <agent> <worktree> [task|batch] [extra-cli-args...]
 ```
 
 The optional receive mode defaults to `task`. Use `batch` for roles that should consume all currently queued equal-priority handoffs as one batch.
@@ -240,15 +240,14 @@ Any fields after the receive mode are passed directly to the agent CLI as additi
 ```conf
 window coder copilot wt-coder --yolo
 window architect claude wt-arch task --dangerously-skip-permissions
+window senior-dev claude wt-senior task --model claude-opus-4-8 --effort high
 ```
 
-Optional per-role overrides are expressed as `key=value` pairs after the receive mode (or after extra args):
+One special token is intercepted before passthrough:
 
-| Key | Applies to | Effect |
-|-----|-----------|--------|
-| `model` | all backends | `claude`/`copilot`/`grok`: `--model <val>` · `codex`: `-c model="<val>"` |
-| `effort` | claude, copilot, grok | `--effort <val>` (skipped for codex) |
-| `advisor` | claude only | written as `advisorModel` into the worktree's `.claude/settings.local.json` |
+| Token | Applies to | Effect |
+|-------|-----------|--------|
+| `advisor=<model>` | claude only | writes `advisorModel` into the worktree's `.claude/settings.local.json` instead of being passed as a CLI flag |
 
 You can define as many windows as your project needs. Each `role` maps to a corresponding prompt file at `swarmforge/roles/<role>.prompt`, so a config containing `architect`, `coder`, `reviewer`, `research`, and `release` windows would expect:
 
