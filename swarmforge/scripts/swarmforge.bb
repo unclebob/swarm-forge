@@ -561,6 +561,7 @@
                                      (drop 2 args))
     "--test-agent-start-delay" (println (env-long "SWARMFORGE_AGENT_START_DELAY_MS" 1500))
     "--test-tmux-base-indexes" (test-tmux-base-indexes! (second args))
+    "start" (run-main! (System/getProperty "user.dir"))
     (run-main! (or (first args) (System/getProperty "user.dir")))))
 
 (load-file (str (fs/parent *file*) "/fork.bb"))
