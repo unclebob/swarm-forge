@@ -174,9 +174,10 @@
                                    (str "curl -fsSL " (sq url) " | tar -xz --strip-components=1 -C " (sq tmp-dir)))]
             (if (zero? (:exit result))
               (do
-                (let [skills-extracted (fs/path tmp-dir "skills" "engineering")]
-                  (when (fs/exists? skills-extracted)
-                    (doseq [skill-dir (->> (fs/list-dir skills-extracted) (filter fs/directory?))
+                (let [skills-root (fs/path tmp-dir "skills")]
+                  (when (fs/exists? skills-root)
+                    (doseq [subdir (->> (fs/list-dir skills-root) (filter fs/directory?))
+                            skill-dir (->> (fs/list-dir subdir) (filter fs/directory?))
                             :let [skill-name (str (fs/file-name skill-dir))]
                             :when (or (nil? mattpocock-include) (contains? mattpocock-include skill-name))]
                       (let [dst (fs/path skills-dst skill-name)]
