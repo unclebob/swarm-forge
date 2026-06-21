@@ -27,15 +27,15 @@ type: git_handoff
 to: <role>[,<role>...]
 priority: NN
 task: <short-stable-task-name>
-commit: <10-character-commit-abbrev>
+commit: $(git rev-parse --short=10 HEAD)
 ```
 
 - Do not send or forward a `git_handoff` downstream when the received commit
   produces no functional project change. Complete the inbound task instead.
 - Treat manifest-only, audit-only, generated metadata, formatting-only, and
   other non-functional churn as no forwardable change.
-- When routing work back upstream, always use `git_handoff` with your current
-  branch HEAD as the commit, even if you authored no functional lines.
+- When routing work back upstream, commit your findings file first so the commit
+  carries context, then send `git_handoff` with that HEAD as the commit.
 - Preserve the received task name when forwarding work for the same task. If the
   handoff starts new work, invent a short stable task name.
 - For `note`, write:
@@ -66,7 +66,7 @@ message: <one line, max 80 chars>
   current batch in helper-delivered order.
 - Use only the task information printed by the helper scripts.
 - If a tmux wake-up arrives while already working on a task, ignore it.
-- When the task or batch is fully complete, run `agent-retro`, then run `done_with_current.sh`.
+- When the task or batch is fully complete, send any outbound handoff first, then run `agent-retro`, then run `done_with_current.sh`.
 - `note` handoffs are tasks too; after reading or acting on a note, run
   `done_with_current.sh` before accepting any other handoff.
 - If `done_with_current.sh` prints `TASK: <path>`, treat the printed `PAYLOAD`

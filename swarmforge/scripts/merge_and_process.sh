@@ -9,12 +9,7 @@ set -euo pipefail
 SENDER_ROLE="${1?Usage: merge_and_process <sender-role> <canonical-commit>}"
 CANONICAL_COMMIT="${2?Usage: merge_and_process <sender-role> <canonical-commit>}"
 
-SENDER_BRANCH="swarmforge-${SENDER_ROLE}"
-
-echo "merge_and_process: fetching origin/${SENDER_BRANCH}..."
-git fetch origin "${SENDER_BRANCH}"
-
-echo "merge_and_process: merging ${CANONICAL_COMMIT} (from ${SENDER_BRANCH})..."
+echo "merge_and_process: merging ${CANONICAL_COMMIT} (from ${SENDER_ROLE})..."
 if ! git merge --no-ff "${CANONICAL_COMMIT}"; then
   echo "" >&2
   echo "CONFLICT: merge of ${CANONICAL_COMMIT} into $(git symbolic-ref --short HEAD) failed." >&2
