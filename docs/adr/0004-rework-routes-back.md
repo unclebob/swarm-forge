@@ -15,4 +15,7 @@ The trigger is not only a defect. Any finding that an earlier stage's work must 
 ## Pending implementation
 
 - How a finding is attributed to an origin stage (the line must be able to trace it back to the spec, test, or design that owns it).
-- Where the rule lives in the role prompts (runnable change, `six-pack`).
+
+## Implementation notes
+
+- Back-routing always uses `git_handoff` with the sender's current branch HEAD as the commit, even when the sender authored no functional lines. Two distinct rules (forwarding vs. back-routing) replace the old single "no functional change" block in `swarmforge/constitution/articles/handoffs.prompt`.

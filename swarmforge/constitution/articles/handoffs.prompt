@@ -30,10 +30,12 @@ task: <short-stable-task-name>
 commit: <10-character-commit-abbrev>
 ```
 
-- Do not send or forward a `git_handoff` when the received commit produces no
-  functional project change. Complete the inbound task instead.
+- Do not send or forward a `git_handoff` downstream when the received commit
+  produces no functional project change. Complete the inbound task instead.
 - Treat manifest-only, audit-only, generated metadata, formatting-only, and
   other non-functional churn as no forwardable change.
+- When routing work back upstream, always use `git_handoff` with your current
+  branch HEAD as the commit, even if you authored no functional lines.
 - Preserve the received task name when forwarding work for the same task. If the
   handoff starts new work, invent a short stable task name.
 - For `note`, write:

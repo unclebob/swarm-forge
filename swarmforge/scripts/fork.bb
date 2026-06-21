@@ -19,6 +19,10 @@
                    (assoc :autoCompactEnabled true)
                    (assoc-in [:env :CLAUDE_AUTOCOMPACT_PCT_OVERRIDE] "88")
                    (assoc-in [:env :CLAUDE_CODE_AUTO_COMPACT_WINDOW] "200000"))
+           marker-path (str worktree-path "/.swarmforge/agent-running")
+           cfg (-> cfg
+                   (assoc-in [:hooks :UserPromptSubmit] [{:hooks [{:type "command" :command (str "touch " marker-path)}]}])
+                   (assoc-in [:hooks :Stop] [{:hooks [{:type "command" :command (str "rm -f " marker-path)}]}]))
            cfg (if (seq advisor-model)
                  (assoc cfg :advisorModel advisor-model)
                  cfg)]
