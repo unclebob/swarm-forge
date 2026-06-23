@@ -140,9 +140,9 @@
                   delivered (add-delivery-headers message recipient)]
               (fs/create-dirs (fs/parent target))
               (when-not (fs/exists? target)
-                (spit (str target) (render-message (:headers delivered) (:body delivered))))
-              (when-not (fs/exists? (fs/path (:worktree-path role-info) ".swarmforge" "agent-running"))
-                (notify! socket (:session role-info))))))
+                (spit (str target) (render-message (:headers delivered) (:body delivered)))
+                (when-not (fs/exists? (fs/path (:worktree-path role-info) ".swarmforge" "agent-running"))
+                  (notify! socket (:session role-info)))))))
         (move-with-collision path
                              (fs/path (get-in roles [sender-role :worktree-path])
                                       ".swarmforge" "handoffs" "sent"))
