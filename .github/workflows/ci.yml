@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main, six-pack]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install babashka
+        run: |
+          curl -fsSLO https://github.com/babashka/babashka/releases/download/v1.12.218/babashka-1.12.218-linux-amd64-static.tar.gz
+          tar xzf babashka-1.12.218-linux-amd64-static.tar.gz
+          sudo mv bb /usr/local/bin/
+
+      - name: Install dependencies
+        run: sudo apt-get install -y tmux zsh
+
+      - name: Run upstream tests
+        run: bb test
+
+      - name: Run fork extension tests
+        run: bb fork-test

@@ -1,5 +1,6 @@
 .DS_Store
 .env
-.claude/
+.claude/*
+!.claude/skills/
 .swarmforge/
 .worktrees/

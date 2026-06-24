@@ -7,4 +7,6 @@
                 (require 'swarmforge.script-test)
                 (let [{:keys [fail error]} (clojure.test/run-tests 'swarmforge.handoff-test
                                                                     'swarmforge.script-test)]
-                  (System/exit (+ fail error))))}}}
+                  (System/exit (+ fail error))))}
+  fork-test {:doc "Run fork extension tests (fork.bb overrides)"
+             :task (shell "bb" "test/fork_runner.bb")}}}

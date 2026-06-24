@@ -67,22 +67,38 @@ In the directory where you want to use SwarmForge, choose a runnable branch and 
 
 ```sh
 BRANCH=four-pack
-curl -L "https://github.com/unclebob/swarm-forge/archive/refs/heads/${BRANCH}.tar.gz" | tar -xz --strip-components=1
+curl -L "https://github.com/gabadi/swarm-forge/archive/refs/heads/${BRANCH}.tar.gz" | tar -xz --strip-components=1
 ```
 
 Use `BRANCH=two-pack` for the quick two-agent workflow, `BRANCH=four-pack` for the compact specification workflow, or `BRANCH=six-pack` for the full six-agent workflow. Do not use `main` for this command; `main` is documentary and stores the shared operational scripts, while the runnable branches provide the configurations and prompts intended for projects.
 
-After copying a runnable branch, start the swarm from the target project:
+After copying a runnable branch, run `./swarm` once to bootstrap the scripts and install skills:
 
 ```sh
 ./swarm
 ```
 
-The `./swarm` wrapper keeps the runnable branch small. On first use, if `swarmforge/scripts/` is missing, it downloads the `main` branch archive, copies the shared operational scripts from `swarmforge/scripts/`, stages shared constitution articles from `swarmforge/constitution/articles/`, and then launches `swarmforge/scripts/swarmforge.sh`. Later runs reuse the existing local scripts directory instead of overwriting it.
+This will print `Error: project is not swarm-ready. Run /setup-swarm first.` — that is expected. It downloads the shared operational scripts and installs the SwarmForge skills into `.claude/skills/`, making `/setup-swarm` available in Claude Code.
+
+Then open Claude Code in the project directory and run the one-time setup skill:
+
+```sh
+/setup-swarm
+```
+
+This installs language-appropriate quality tools, writes permission allow-rules, and scaffolds `.gitignore`. You only need to run it once per project.
+
+Then launch the swarm:
+
+```sh
+./swarm
+```
+
+The `./swarm` wrapper keeps the runnable branch small. On later runs, if `swarmforge/scripts/` already exists, it skips the download and launches immediately.
 
 The windows should open automatically.
 
-To stop the swarm, close the first window listed in `swarmforge/swarmforge.conf`. That cleanup window shuts down the tmux sessions and closes the remaining tracked windows.
+To stop the swarm, run `./swarm stop` or close the first window listed in `swarmforge/swarmforge.conf`. That cleanup window shuts down the tmux sessions and closes the remaining tracked windows.
 
 ## What SwarmForge Does
 
@@ -224,7 +240,14 @@ Any fields after the receive mode are passed directly to the agent CLI as additi
 ```conf
 window coder copilot wt-coder --yolo
 window architect claude wt-arch task --dangerously-skip-permissions
+window senior-dev claude wt-senior task --model claude-opus-4-8 --effort high
 ```
+
+One special token is intercepted before passthrough:
+
+| Token | Applies to | Effect |
+|-------|-----------|--------|
+| `advisor=<model>` | claude only | writes `advisorModel` into the worktree's `.claude/settings.local.json` instead of being passed as a CLI flag |
 
 You can define as many windows as your project needs. Each `role` maps to a corresponding prompt file at `swarmforge/roles/<role>.prompt`, so a config containing `architect`, `coder`, `reviewer`, `research`, and `release` windows would expect:
 

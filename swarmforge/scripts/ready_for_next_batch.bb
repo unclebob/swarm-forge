@@ -2,6 +2,7 @@
 
 (ns ready-for-next-batch
   (:require [babashka.fs :as fs]
+            [clojure.java.shell :as sh]
             [clojure.string :as str]))
 
 (defn inbox-dir []
@@ -96,6 +97,22 @@
       (println "BATCH_ITEM:" (inc index))
       (print-task file))))
 
+(defn sync-to-trunk! []
+  (let [fetch-result (sh/sh "git" "fetch" "origin")]
+    (when-not (zero? (:exit fetch-result))
+      (binding [*out* *err*]
+        (println "WARNING: git fetch failed:" (str/trim (:err fetch-result))))))
+  (let [branch-result (sh/sh "git" "symbolic-ref" "--short" "refs/remotes/origin/HEAD")
+        default-branch (when (zero? (:exit branch-result))
+                         (str/trim (:out branch-result)))]
+    (if default-branch
+      (let [reset-result (sh/sh "git" "reset" "--hard" default-branch)]
+        (when-not (zero? (:exit reset-result))
+          (binding [*out* *err*]
+            (println "WARNING: git reset --hard" default-branch "failed:" (str/trim (:err reset-result))))))
+      (binding [*out* *err*]
+        (println "WARNING: could not resolve default branch; skipping trunk sync")))))
+
 (defn fail! [status & lines]
   (binding [*out* *err*]
     (doseq [line lines]
@@ -143,6 +160,7 @@
                   (set-header! target-file "dequeued_at" (timestamp))))
               (when (empty? selected-files)
                 (fail! 2 (str "AMBIGUOUS_TASK_STATE: no tasks selected for batch priority " batch-priority ".")))
+              (sync-to-trunk!)
               (print-batch batch-dir))))))))
 
 (-main)

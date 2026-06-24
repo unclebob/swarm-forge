@@ -92,17 +92,21 @@
            ".swarmforge" "handoffs" "inbox" "new" filename))
 
 (defn notify! [socket session]
-  (let [send-text (sh "tmux" "-S" socket "send-keys" "-t" session "-l" wake-message)
-        _ (Thread/sleep 150)
-        send-carriage-return (sh "tmux" "-S" socket "send-keys" "-t" session "C-m")
-        _ (Thread/sleep 50)
-        send-line-feed (sh "tmux" "-S" socket "send-keys" "-t" session "C-j")]
-    (when-not (zero? (:exit send-text))
-      (throw (ex-info "tmux send text failed" send-text)))
-    (when-not (zero? (:exit send-carriage-return))
-      (throw (ex-info "tmux send carriage return failed" send-carriage-return)))
-    (when-not (zero? (:exit send-line-feed))
-      (throw (ex-info "tmux send line feed failed" send-line-feed)))))
+  (letfn [(send! [text]
+            (let [r (sh "tmux" "-S" socket "send-keys" "-t" session "-l" text)]
+              (when-not (zero? (:exit r))
+                (throw (ex-info (str "tmux send failed: " text) r)))))
+          (enter! []
+            (let [r (sh "tmux" "-S" socket "send-keys" "-t" session "Enter")]
+              (when-not (zero? (:exit r))
+                (throw (ex-info "tmux send Enter failed" r)))))]
+    (send! "/clear")
+    (Thread/sleep 500)
+    (enter!)
+    (Thread/sleep 2000)
+    (send! (str "/swarm-persona " wake-message))
+    (Thread/sleep 150)
+    (enter!)))
 
 (defn move-with-collision [source target-dir]
   (fs/create-dirs target-dir)
@@ -136,8 +140,9 @@
                   delivered (add-delivery-headers message recipient)]
               (fs/create-dirs (fs/parent target))
               (when-not (fs/exists? target)
-                (spit (str target) (render-message (:headers delivered) (:body delivered))))
-              (notify! socket (:session role-info)))))
+                (spit (str target) (render-message (:headers delivered) (:body delivered)))
+                (when-not (fs/exists? (fs/path (:worktree-path role-info) ".swarmforge" "agent-running"))
+                  (notify! socket (:session role-info)))))))
         (move-with-collision path
                              (fs/path (get-in roles [sender-role :worktree-path])
                                       ".swarmforge" "handoffs" "sent"))
