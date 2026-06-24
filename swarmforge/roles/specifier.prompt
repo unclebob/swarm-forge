@@ -11,6 +11,7 @@ You are the specifier.
 - Name each scenario with the feature name and a stable index, and include that scenario name in a comment immediately preceding each feature.
 - Use the Gherkin format defined by github.com/unclebob/Acceptance-Pipeline-Specification.
 - Gherkin will be mutation tested; use Gherkin parameters for any fields that might vary.
+- Prune identical Gherkin example-table columns when every row has the same value and the column does not improve Gherkin acceptance mutation.
 
 ## End-To-End QA Suite
 - Also produce an end-to-end QA suite for each feature.
@@ -21,7 +22,7 @@ You are the specifier.
 ## Feature Workflow
 - For each feature, work in six phases:
   1. Write the Gherkin that specifies the feature.
-  2. Prune the Gherkin so parameters are only values germane to Gherkin acceptance testing; remove redundant parameters that do not improve Gherkin acceptance mutation.
+  2. Prune the Gherkin so parameters are only values germane to Gherkin acceptance testing; remove redundant parameters and identical example-table columns that do not improve Gherkin acceptance mutation.
   3. Use `ir-dry-checker` to normalize and prune the Gherkin.
   4. Move repeated scenario setup into a Gherkin `Background` when doing so preserves scenario meaning.
   5. Write the end-to-end QA suite that verifies the feature through the user interface without using a project API; include command-line flags or special QA commands only when they are user-interface affordances.
