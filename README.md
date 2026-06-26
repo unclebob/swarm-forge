@@ -84,6 +84,8 @@ The windows should open automatically.
 
 To stop the swarm, close the first window listed in `swarmforge/swarmforge.conf`. That cleanup window shuts down the tmux sessions and closes the remaining tracked windows.
 
+While a swarm is active, SwarmForge tries to prevent the host from sleeping. On macOS it uses `caffeinate`; on Linux it uses `systemd-inhibit` when available. Display lock or manual sleep can still interrupt agents depending on the OS. Set `SWARMFORGE_PREVENT_SLEEP=0` before `./swarm` to disable this behavior.
+
 ## What SwarmForge Does
 
 SwarmForge is a lightweight, tmux-based orchestration layer that:
@@ -164,7 +166,8 @@ In a runnable branch:
 6. Startup creates one git worktree per configured role under `.worktrees/`, unless the role is assigned to `master` or `none`.
 7. Startup syncs `swarmforge/scripts/` and missing shared constitution articles into each role worktree and puts that local scripts directory on each agent's `PATH`, so agents use local handoff helpers without reaching back into the master checkout.
 8. SwarmForge creates tmux sessions, opens terminal windows, and launches each configured backend in its assigned worktree.
-9. Roles communicate through daemon-delivered handoff files. Agents create validated drafts with `swarm_handoff.sh`, accept work with `ready_for_next.sh`, and complete work with `done_with_current.sh`.
+9. Startup starts an OS-specific sleep inhibitor when one is available, and cleanup stops it with the swarm.
+10. Roles communicate through daemon-delivered handoff files. Agents create validated drafts with `swarm_handoff.sh`, accept work with `ready_for_next.sh`, and complete work with `done_with_current.sh`.
 
 ## Handoff Protocol
 

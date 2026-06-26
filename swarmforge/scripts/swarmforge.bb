@@ -363,12 +363,40 @@
               "bb" (str (fs/path (:script-dir ctx) "stop_handoff_daemon.bb"))
               (str (:working-dir ctx))))
 
+(defn uname []
+  (str/trim (:out (process/sh {:continue true} "uname" "-s"))))
+
+(defn linux-systemd-running? []
+  (let [result (process/sh {:continue true} "systemctl" "is-system-running")
+        state (str/trim (:out result))]
+    (#{"running" "degraded"} state)))
+
+(defn sleep-inhibitor-prefix []
+  (when-not (= "0" (System/getenv "SWARMFORGE_PREVENT_SLEEP"))
+    (case (uname)
+      "Darwin" (when (command-exists? "caffeinate")
+                 ["caffeinate" "-dims"])
+      "Linux" (when (and (command-exists? "systemd-inhibit")
+                         (command-exists? "systemctl")
+                         (linux-systemd-running?))
+                ["systemd-inhibit"
+                 "--what=sleep:idle"
+                 "--who=SwarmForge"
+                 "--why=SwarmForge swarm is active"])
+      nil)))
+
 (defn start-handoff-daemon! [ctx]
   (fs/delete-if-exists (fs/path (:daemon-dir ctx) "stop"))
-  (process/process [(str (fs/path (:script-dir ctx) "handoffd.bb")) (str (:working-dir ctx))]
-                   {:out (str (:handoff-daemon-log ctx))
-                    :err :out})
-  (println (str green "Started handoff daemon." reset)))
+  (let [command (into (vec (sleep-inhibitor-prefix))
+                      [(str (fs/path (:script-dir ctx) "handoffd.bb"))
+                       (str (:working-dir ctx))])]
+    (process/process command
+                     {:out (str (:handoff-daemon-log ctx))
+                      :err :out})
+    (println (str green "Started handoff daemon"
+                  (when (> (count command) 2) " with OS sleep prevention")
+                  "."
+                  reset))))
 
 (defn adapter-script [ctx command & args]
   (let [script (str "SCRIPT_DIR=" (sq (str (:script-dir ctx))) "\n"
@@ -545,6 +573,9 @@
     (fs/create-dirs (:prompts-dir ctx))
     (println (launch-command ctx 1 row))))
 
+(defn test-sleep-inhibitor-prefix! []
+  (println (str/join " " (or (sleep-inhibitor-prefix) []))))
+
 (defn -main [& args]
   (case (first args)
     "--test-parse" (test-parse! (or (second args) (System/getProperty "user.dir")))
@@ -553,6 +584,7 @@
                                      (or (second args) (System/getProperty "user.dir"))
                                      (drop 2 args))
     "--test-agent-start-delay" (println (env-long "SWARMFORGE_AGENT_START_DELAY_MS" 1500))
+    "--test-sleep-inhibitor-prefix" (test-sleep-inhibitor-prefix!)
     "--test-tmux-base-indexes" (test-tmux-base-indexes! (second args))
     (run-main! (or (first args) (System/getProperty "user.dir")))))
 

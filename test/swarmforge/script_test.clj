@@ -180,6 +180,13 @@
     (is (= "2750" (str/trim (:out configured-result))))
     (is (= "1500" (str/trim (:out invalid-result))))))
 
+(deftest swarmforge-sleep-prevention-can-be-disabled
+  (let [result (run {:dir repo-root
+                     :env {"SWARMFORGE_PREVENT_SLEEP" "0"}}
+                    (script "swarmforge.bb")
+                    "--test-sleep-inhibitor-prefix")]
+    (is (= "" (str/trim (:out result))))))
+
 (deftest swarmforge-launcher-parses-extra-cli-args
   (let [root (tmp-dir)]
     (try
