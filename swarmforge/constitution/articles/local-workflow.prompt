@@ -2,4 +2,4 @@
 
 ## QA Handoffs
 - A QA handoff does not interrupt current work. If a QA wake-up arrives while working, ignore it and let `done_with_current.sh` deliver the next queued task or batch after the current work is complete.
-- When a helper-delivered task is from QA, merge the sender commit identified by the printed `PAYLOAD` (`merge_and_process QA <commit>`). Do not send a `git_handoff` downstream. Apart from merge and any QA-completion steps in your role prompt, do not apply other role-specific work to that QA handoff. Then run `done_with_current.sh`.
+- When a helper-delivered task is from QA, merge the sender commit identified by the printed `PAYLOAD` (`merge_and_process QA <commit>`). Every agent except the specifier must run unit tests and acceptance tests and fix any failures. Then run `done_with_current.sh`. Do not send a `git_handoff` downstream. Apart from merge, verification, and any QA-completion steps in your role prompt, do not apply other role-specific work to that QA handoff.
