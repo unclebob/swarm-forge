@@ -101,15 +101,45 @@
                        "window cleaner codex cleaner batch\n"))
       (write-file (fs/path root "swarmforge/roles/coder.prompt") "coder\n")
       (write-file (fs/path root "swarmforge/roles/cleaner.prompt") "cleaner\n")
+      (write-file (fs/path root "swarmforge/constitution/articles/engineering.prompt")
+                  "project override\n")
       (let [result (run {:dir root} (script "swarmforge.bb") "--test-parse" (str root))]
         (is (str/includes? (:out result) "coder Coder"))
         (is (str/includes? (:out result) "cleaner Cleaner"))
         (is (str/includes? (:out result) "cleaner batch"))
         (is (str/includes? (:out result) "swarmforge-coder"))
         (is (str/includes? (:out result) "swarmforge-cleaner"))
-        (is (fs/exists? (fs/path root ".swarmforge/tmux-socket"))))
+        (is (fs/exists? (fs/path root ".swarmforge/tmux-socket")))
+        (is (= "project override\n"
+               (slurp (str (fs/path root "swarmforge/constitution/articles/engineering.prompt")))))
+        (is (fs/exists? (fs/path root "swarmforge/constitution/articles/handoffs.prompt")))
+        (is (fs/exists? (fs/path root "swarmforge/constitution/articles/workflow.prompt"))))
       (finally
         (fs/delete-tree root)))))
+
+(deftest swarmforge-installs-missing-articles-into-role-worktrees
+  (let [source (tmp-dir)
+        target (tmp-dir)
+        script-dir (fs/path source "swarmforge/scripts")]
+    (try
+      (write-file (fs/path script-dir "shared-articles/engineering.prompt") "shared engineering\n")
+      (write-file (fs/path script-dir "shared-articles/handoffs.prompt") "shared handoffs\n")
+      (write-file (fs/path source "swarmforge/constitution/articles/project.prompt") "project rules\n")
+      (write-file (fs/path target "swarmforge/constitution/articles/engineering.prompt") "role override\n")
+      (run {:dir target}
+           (script "swarmforge.bb")
+           "--test-install-shared-articles"
+           (str script-dir)
+           (str target))
+      (is (= "role override\n"
+             (slurp (str (fs/path target "swarmforge/constitution/articles/engineering.prompt")))))
+      (is (= "shared handoffs\n"
+             (slurp (str (fs/path target "swarmforge/constitution/articles/handoffs.prompt")))))
+      (is (= "project rules\n"
+             (slurp (str (fs/path target "swarmforge/constitution/articles/project.prompt")))))
+      (finally
+        (fs/delete-tree source)
+        (fs/delete-tree target)))))
 
 (deftest swarmforge-uses-portable-tmux-socket-dir
   (let [root (tmp-dir)]

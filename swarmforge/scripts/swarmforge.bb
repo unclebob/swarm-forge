@@ -229,6 +229,23 @@
 (def terminal-helpers
   ["terminal-app.sh" "iterm2.sh" "ghostty.sh" "windows-terminal.sh" "none.sh"])
 
+(defn install-shared-constitution-articles! [script-dir target-root]
+  (let [target-dir (fs/path target-root "swarmforge" "constitution" "articles")
+        source-dirs [(fs/path script-dir "shared-articles")
+                     (fs/path (fs/parent script-dir) "constitution" "articles")]]
+    (fs/create-dirs target-dir)
+    (doseq [source-dir source-dirs
+            :when (fs/directory? source-dir)
+            article (fs/list-dir source-dir)
+            :when (fs/regular-file? article)
+            :let [target (fs/path target-dir (fs/file-name article))]
+            :when (not (fs/exists? target))]
+      (fs/copy article target))))
+
+(defn install-project-constitution-articles! [ctx]
+  (install-shared-constitution-articles! (:script-dir ctx) (:working-dir ctx))
+  ctx)
+
 (defn check-helper-scripts! [ctx]
   (doseq [helper required-helpers]
     (let [path (fs/path (:script-dir ctx) helper)]
@@ -279,6 +296,7 @@
           (if (fs/directory? entry)
             (fs/copy-tree entry target {:replace-existing true})
             (fs/copy entry target {:replace-existing true}))))
+      (install-shared-constitution-articles! (:script-dir ctx) worktree-path)
       (fs/create-dirs (fs/path role-state-dir "notify"))
       (fs/copy (:sessions-file ctx) (fs/path role-state-dir "sessions.tsv") {:replace-existing true})
       (fs/copy (:roles-file ctx) (fs/path role-state-dir "roles.tsv") {:replace-existing true})
@@ -493,7 +511,9 @@
       (assoc :terminal-backend (detect-terminal-backend))))
 
 (defn test-parse! [root]
-  (let [ctx (prepare-ctx (context root))]
+  (let [ctx (-> (context root)
+                install-project-constitution-articles!
+                prepare-ctx)]
     (prepare-workspace! ctx)
     (doseq [row (:roles ctx)]
       (println (str (:role row) " " (:display-name row) " " (:worktree-path row) " "
@@ -510,7 +530,9 @@
                 detect-tmux-base-indexes)]
     (initialize-git-repo! ctx)
     (ensure-runtime-git-excludes! ctx)
-    (let [ctx (prepare-ctx ctx)]
+    (let [ctx (-> ctx
+                  install-project-constitution-articles!
+                  prepare-ctx)]
       (check-backend-dependencies! ctx)
       (prepare-workspace! ctx)
       (prepare-worktrees! ctx)
@@ -584,6 +606,7 @@
                                      (or (second args) (System/getProperty "user.dir"))
                                      (drop 2 args))
     "--test-agent-start-delay" (println (env-long "SWARMFORGE_AGENT_START_DELAY_MS" 1500))
+    "--test-install-shared-articles" (install-shared-constitution-articles! (second args) (nth args 2))
     "--test-sleep-inhibitor-prefix" (test-sleep-inhibitor-prefix!)
     "--test-tmux-base-indexes" (test-tmux-base-indexes! (second args))
     (run-main! (or (first args) (System/getProperty "user.dir")))))
