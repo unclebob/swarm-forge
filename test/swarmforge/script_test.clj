@@ -48,12 +48,13 @@
                        "type: git_handoff\n"
                        "task: task-alpha\n"
                        "\n"
-                       "merge_and_process coder abcdef1234\n"))
+                       "Merge commit abcdef1234 from role coder into your current branch. "
+                       "Then process the merged state according to your role and constitution.\n"))
       (let [header (run {:dir root} (script "handoff_lib.bb") "header-field" "task.handoff" "task")
             body (run {:dir root} (script "handoff_lib.bb") "body" "task.handoff")
             task (run {:dir root} (script "handoff_lib.bb") "print-task" "task.handoff")]
         (is (str/includes? (:out header) "task-alpha"))
-        (is (str/includes? (:out body) "merge_and_process coder abcdef1234"))
+        (is (str/includes? (:out body) "Merge commit abcdef1234 from role coder into your current branch."))
         (is (str/includes? (:out task) "TASK: task.handoff"))
         (is (str/includes? (:out task) "FROM: coder"))
         (is (str/includes? (:out task) "TASK_NAME: task-alpha")))

@@ -111,7 +111,8 @@
                          :type "git_handoff"
                          :task "task-one"
                          :commit "0123456789"
-                         :body "merge_and_process sender 0123456789"}
+                         :body (str "Merge commit 0123456789 from role sender into your current branch. "
+                                    "Then process the merged state according to your role and constitution.")}
                         attrs))))
 
 (deftest swarm-handoff-validates-and-queues-git-handoffs
@@ -135,7 +136,10 @@
               content (read-file queued)]
           (is (str/includes? content "task: task-1-cave-setup\n"))
           (is (str/includes? content (str "commit: " commit "\n")))
-          (is (str/includes? content (str "merge_and_process sender " commit)))
+          (is (str/includes? content
+                             (str "Merge commit " commit " from role sender into your current branch. "
+                                  "Then process the merged state according to your role and constitution.")))
+          (is (not (str/includes? content "merge_and_process")))
           (is (fs/exists? queued))
           (is (not (fs/exists? draft))))))))
 
