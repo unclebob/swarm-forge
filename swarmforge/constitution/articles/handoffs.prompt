@@ -26,7 +26,7 @@ commit: <10-character-commit-abbrev>
   generated metadata, and other non-functional churn still require a forward
   down the chain.
 - When your role sends the end-of-chain handoff to multiple recipients, those
-  recipients merge only (`merge_and_process`). They do not forward that handoff
+  recipients merge the received commit only. They do not forward that handoff
   further. Only this terminal broadcast is merge-only without re-forwarding.
 - Preserve the received task name when forwarding work for the same task. If the
   handoff starts new work, invent a short stable task name.

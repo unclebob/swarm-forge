@@ -264,7 +264,9 @@
 
 (defn body [type sender canonical-commit note-message]
   (case type
-    "git_handoff" (str "Re-read your role and constitution.\n\nmerge_and_process " sender " " canonical-commit)
+    "git_handoff" (str "Re-read your role and constitution.\n\nMerge commit " canonical-commit
+                       " from role " sender
+                       " into your current branch. Then process the merged state according to your role and constitution.")
     "note" (str "Re-read your role and constitution.\n\n" note-message)))
 
 (defn write-handoff! [{:keys [headers recipients canonical-commit sender]}]

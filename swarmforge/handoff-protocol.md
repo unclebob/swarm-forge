@@ -118,7 +118,7 @@ enqueued_at: 2026-06-15T14:05:32Z
 
 Re-read your role and constitution.
 
-merge_and_process coder a1b2c3d9
+Merge commit a1b2c3d9 from role coder into your current branch. Then process the merged state according to your role and constitution.
 ```
 
 For broadcast handoffs, `to` preserves the full recipient list and `recipient`
@@ -147,7 +147,7 @@ Generated body:
 ```text
 Re-read your role and constitution.
 
-merge_and_process coder a1b2c3d9
+Merge commit a1b2c3d9 from role coder into your current branch. Then process the merged state according to your role and constitution.
 ```
 
 The script validates the task name and canonicalizes the commit abbreviation
@@ -175,7 +175,7 @@ Examples:
 #### Terminal broadcast
 
 Only the end-of-chain handoff sent to multiple recipients is not forwarded
-further. Each recipient merges that commit (`merge_and_process`) and stops;
+further. Each recipient merges that commit and stops;
 recipients do not re-forward that handoff down the chain.
 
 Examples:
@@ -388,7 +388,7 @@ TASK_NAME: task-1-cave-setup
 PAYLOAD:
 Re-read your role and constitution.
 
-merge_and_process architect a1b2c3d9
+Merge commit a1b2c3d9 from role architect into your current branch. Then process the merged state according to your role and constitution.
 ```
 
 ### `done_with_current_task.sh`
