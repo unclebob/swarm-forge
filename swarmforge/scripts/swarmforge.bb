@@ -468,7 +468,7 @@
      :script-dir script-dir
      :swarm-forge-dir swarm-forge-dir
      :worktrees-dir (fs/path working-dir ".worktrees")
-     :config-file (fs/path swarm-forge-dir "swarmforge.conf")
+     :config-file (fs/path swarm-forge-dir (or (System/getenv "SWARMFORGE_CONFIG") "swarmforge.conf"))
      :roles-dir (fs/path swarm-forge-dir "roles")
      :constitution-file (fs/path swarm-forge-dir "constitution.prompt")
      :state-dir state-dir

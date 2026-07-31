@@ -102,6 +102,7 @@ SwarmForge is a lightweight, tmux-based orchestration layer that:
 ## Core Features
 
 - **Config-Driven Topology** — The swarm shape comes from `swarmforge/swarmforge.conf`, not hardcoded shell variables.
+- **Alternate Configurations** — Set `SWARMFORGE_CONFIG` to a project-local alternate configuration filename for a bounded smoke workflow.
 - **Project-Local Roles** — Each role is defined by `swarmforge/roles/<role>.prompt` in the working tree being orchestrated.
 - **Layered Constitution** — `swarmforge/constitution.prompt` directs agents to read article files under `swarmforge/constitution/articles/`.
 - **Backend Selection Per Role** — A role can launch `claude`, `codex`, `copilot`, `grok`, or `opencode`. For OpenCode, set the provider and model as role arguments, for example `--model opencode-go/qwen3.7-plus` or `--model opencode/deepseek-v4-pro`.
