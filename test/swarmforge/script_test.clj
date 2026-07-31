@@ -237,6 +237,22 @@
       (finally
         (fs/delete-tree root)))))
 
+(deftest opencode-launch-command-passes-model-and-initial-prompt
+  (let [root (tmp-dir)]
+    (try
+      (let [result (run {:dir root}
+                        (script "swarmforge.bb")
+                        "--test-launch-command"
+                        (str root)
+                        "opencode"
+                        "--model opencode-go/qwen3.7-plus --auto")
+            command (:out result)]
+        (is (str/includes? command "opencode '"))
+        (is (str/includes? command "--model opencode-go/qwen3.7-plus --auto --prompt"))
+        (is (str/includes? command ".swarmforge/prompts/coder.md")))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest grok-launch-command-uses-bypass-permissions-with-always-approve
   (let [root (tmp-dir)]
     (try
