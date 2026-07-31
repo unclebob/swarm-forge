@@ -390,10 +390,16 @@
   (fs/delete-if-exists (fs/path (:daemon-dir ctx) "stop"))
   (let [command (into (vec (sleep-inhibitor-prefix))
                       [(str (fs/path (:script-dir ctx) "handoffd.bb"))
-                       (str (:working-dir ctx))])]
-    (process/process command
-                     {:out (str (:handoff-daemon-log ctx))
-                      :err :out})
+                       (str (:working-dir ctx))])
+        detached-command (str "nohup "
+                              (str/join " " (map sq command))
+                              " </dev/null >>"
+                              (sq (str (:handoff-daemon-log ctx)))
+                              " 2>&1 &")]
+    ;; A babashka-managed child can be terminated with its launcher when the
+    ;; terminal bridge detaches.  The handoff daemon must instead outlive that
+    ;; bridge and follow its explicit stop-file protocol.
+    (sh "zsh" "-c" detached-command)
     (println (str green "Started handoff daemon"
                   (when (> (count command) 2) " with OS sleep prevention")
                   "."
