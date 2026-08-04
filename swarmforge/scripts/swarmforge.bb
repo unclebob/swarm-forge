@@ -227,7 +227,7 @@
    "swarm-terminal-adapter.sh" "swarmforge.sh" "swarmforge.bb"])
 
 (def terminal-helpers
-  ["terminal-app.sh" "iterm2.sh" "ghostty.sh" "windows-terminal.sh" "none.sh"])
+  ["terminal-app.sh" "iterm2.sh" "ghostty.sh" "windows-terminal.sh" "tmux-grid.sh" "none.sh"])
 
 (defn check-helper-scripts! [ctx]
   (doseq [helper required-helpers]

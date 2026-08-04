@@ -268,11 +268,59 @@ After copying a runnable branch, set `SWARMFORGE_TERMINAL` to override detection
 ```sh
 SWARMFORGE_TERMINAL=ghostty ./swarm
 SWARMFORGE_TERMINAL=terminal-app ./swarm
+SWARMFORGE_TERMINAL=iterm2 ./swarm
 SWARMFORGE_TERMINAL=windows-terminal ./swarm
+SWARMFORGE_TERMINAL=tmux-grid ./swarm
 SWARMFORGE_TERMINAL=none ./swarm
 ```
 
-Use `ghostty` when you want SwarmForge to open Ghostty tabs instead of the default Terminal.app windows. Use `windows-terminal` when you want SwarmForge to open Windows Terminal windows from WSL. Use `none` when you want SwarmForge to skip terminal automation and attach the cleanup tmux session in the current shell.
+Use `ghostty` when you want SwarmForge to open Ghostty tabs instead of the default Terminal.app windows. Use `windows-terminal` when you want SwarmForge to open Windows Terminal windows from WSL. Use `tmux-grid` when you want the whole swarm tiled in one surface instead of one window per role. Use `none` when you want SwarmForge to skip terminal automation and attach the cleanup tmux session in the current shell.
+
+### Watching The Whole Swarm In One Surface
+
+`terminal-app`, `iterm2`, `ghostty`, and `windows-terminal` open one window per role. That is the right default: every window is independently trackable, and the window watchdog can reopen one a role loses. It also means a six-pack puts six windows on the screen, stacked by the window manager, with no single surface that is the swarm.
+
+`tmux-grid` makes the opposite trade — one surface, one tile per role:
+
+```sh
+SWARMFORGE_TERMINAL=tmux-grid ./swarm
+```
+
+```text
++---------------+---------------+
+|   Specifier   |     Coder     |
++---------------+---------------+
+|    Cleaner    |   Architect   |
++---------------+---------------+
+|   Hardender   |      QA       |
++---------------+---------------+
+```
+
+The tiling is done by tmux, not by a terminal emulator, so it behaves the same under macOS Terminal.app or iTerm2, Windows Terminal from WSL, and any Linux terminal. `select-layout tiled` decides the tiles, so a six-pack tiles 2x3, a four-pack 2x2, and a two-pack side by side. Each pane border carries the project and the role, so two swarms running at once stay tellable apart.
+
+Every role keeps its own tmux session. The grid is one extra viewer session whose panes each attach a role session, so the roles, the handoff daemon, and the `tmux send-keys -t swarmforge-<role>` delivery addresses are unchanged, and dropping the variable restores one window per role. The viewer session holds no state: when cleanup kills the role sessions, its attach processes exit and the viewer ends on its own.
+
+One window is opened for the grid by delegating to a single-window backend, auto-detected as usual, or named explicitly:
+
+```sh
+SWARMFORGE_GRID_TERMINAL=windows-terminal SWARMFORGE_TERMINAL=tmux-grid ./swarm
+```
+
+Where that resolves to `none` — a Linux host with no terminal automation — no window is opened and the grid is attached by hand:
+
+```sh
+tmux -S "$(cat .swarmforge/tmux-socket)" attach-session -t swarmforge-grid
+```
+
+Six tiles need room. As with any tmux session, the grid takes the size of the terminal that attaches it, so run it in a large or full-screen window; before anything attaches, the grid is sized by `SWARMFORGE_GRID_COLUMNS` and `SWARMFORGE_GRID_ROWS`, which default to 240x60.
+
+Because a tile is not a window, this backend reports `terminal_backend_tracks_windows` as false: SwarmForge writes no `window-ids` file and starts no window watchdog, and it says so at startup. A single role is still re-attachable on its own:
+
+```sh
+tmux -S "$(cat .swarmforge/tmux-socket)" attach-session -t swarmforge-coder
+```
+
+The tile labels come from `SWARMFORGE_LABEL` for a single run, `.swarmforge/label` for a name that stays with the project, or the working directory name if neither is set.
 
 ### Adding A Terminal Backend
 

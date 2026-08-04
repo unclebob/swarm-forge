@@ -348,3 +348,134 @@
           (.destroyForcibly daemon))
         (run {:dir root :ok? false} "tmux" "-S" sock "kill-server")
         (fs/delete-tree root)))))
+
+;; tmux grid terminal backend
+
+(defn grid-adapter []
+  (str (fs/path scripts-dir "terminal-adapters" "tmux-grid.sh")))
+
+(defn grid-eval
+  "Load the grid backend the way swarm-terminal-adapter.sh does, then evaluate one expression."
+  [{:keys [dir env]} expression]
+  (str/trim (:out (run {:dir (or dir repo-root)
+                        :env (merge {"SWARMFORGE_TERMINAL" ""} env)}
+                       "zsh" "-c"
+                       (str "has_command() { command -v \"$1\" &>/dev/null; }; "
+                            "SCRIPT_DIR=" scripts-dir "; "
+                            "source " scripts-dir "/swarm-terminal-adapter.sh; "
+                            "source " (grid-adapter) "; "
+                            expression)))))
+
+(deftest grid-backend-declares-itself-and-opts-out-of-window-tracking
+  (testing "it names itself apart from the one-window-per-role backends"
+    (is (= "tmux grid" (grid-eval {} "terminal_backend_label"))))
+  (testing "it opens a surface"
+    (is (= "0" (grid-eval {} "terminal_backend_can_open_sessions; echo $?"))))
+  (testing "tiles are not reopenable windows, so the watchdog must stay off"
+    (is (= "1" (grid-eval {} "terminal_backend_tracks_windows; echo $?")))
+    (is (= "1" (grid-eval {} "terminal_window_exists any-id; echo $?")))))
+
+(deftest grid-backend-implements-the-adapter-interface
+  (doseq [hook ["terminal_backend_label" "terminal_backend_can_open_sessions"
+                "terminal_backend_tracks_windows" "terminal_window_exists"
+                "terminal_open_session" "terminal_close_window"]]
+    (is (= "yes" (grid-eval {} (str "if typeset -f " hook " >/dev/null; then echo yes; fi")))
+        (str hook " must be defined by the grid backend"))))
+
+(deftest grid-backend-never-delegates-the-window-back-to-itself
+  (testing "an explicit grid choice for the inner backend degrades to no window"
+    (is (= "none" (grid-eval {:env {"SWARMFORGE_GRID_TERMINAL" "tmux-grid"}} "_grid_inner_backend")))
+    (is (= "none" (grid-eval {:env {"SWARMFORGE_GRID_TERMINAL" "grid"}} "_grid_inner_backend"))))
+  (testing "an explicit single-window backend is honored and normalized"
+    (is (= "terminal-app" (grid-eval {:env {"SWARMFORGE_GRID_TERMINAL" "Terminal.app"}} "_grid_inner_backend")))
+    (is (= "none" (grid-eval {:env {"SWARMFORGE_GRID_TERMINAL" "none"}} "_grid_inner_backend")))))
+
+(deftest grid-backend-labels-tiles-after-the-working-directory-by-default
+  (let [root (tmp-dir)]
+    (try
+      (testing "with no configuration the label is the project directory name"
+        (is (= (str (fs/file-name root))
+               (grid-eval {:env {"WORKING_DIR" (str root)}} "_grid_label"))))
+      (testing "a project can pin a name that sticks"
+        (write-file (fs/path root ".swarmforge/label") "demo-project\n")
+        (is (= "demo-project" (grid-eval {:env {"WORKING_DIR" (str root)}} "_grid_label"))))
+      (testing "and the environment wins for a single run"
+        (is (= "one-off"
+               (grid-eval {:env {"WORKING_DIR" (str root) "SWARMFORGE_LABEL" "one-off"}}
+                          "_grid_label"))))
+      (finally
+        (fs/delete-tree root)))))
+
+(defn- start-role-sessions! [root sock roles]
+  (doseq [role roles]
+    (run {:dir root} "tmux" "-S" sock "new-session" "-d" "-s" (str "swarmforge-" role) "sleep" "300"))
+  (write-file (fs/path root ".swarmforge/sessions.tsv")
+              (->> roles
+                   (map-indexed (fn [index role]
+                                  (format "%d\t%s\tswarmforge-%s\t%s\tcodex\n"
+                                          (inc index) role role (str/capitalize role))))
+                   (apply str))))
+
+(deftest grid-backend-tiles-every-role-into-one-viewer-session
+  (let [root (tmp-dir)
+        sock (str (fs/path root "swarm.sock"))
+        roles ["specifier" "coder" "cleaner" "architect" "hardender" "qa"]]
+    (try
+      (start-role-sessions! root sock roles)
+      ;; `none` as the inner backend is the platform-independent path: build the grid, open no window.
+      (grid-eval {:env {"WORKING_DIR" (str root)
+                        "TMUX_SOCKET" sock
+                        "SWARMFORGE_GRID_TERMINAL" "none"}}
+                 "terminal_open_session swarmforge-specifier 'SwarmForge Specifier'")
+      (testing "one viewer session holds one pane per role"
+        (let [panes (str/split-lines
+                     (str/trim (:out (run {:dir root} "tmux" "-S" sock "list-panes"
+                                          "-t" "swarmforge-grid" "-F" "#{pane_title}"))))]
+          (is (= (count roles) (count panes)))
+          (is (= ["Specifier" "Coder" "Cleaner" "Architect" "Hardender" "Qa"]
+                 (mapv #(last (str/split % #" \| ")) panes)))))
+      (testing "the panes are tiled rather than stacked in one column"
+        (let [geometry (->> (run {:dir root} "tmux" "-S" sock "list-panes"
+                                 "-t" "swarmforge-grid" "-F" "#{pane_left},#{pane_top}")
+                            :out str/trim str/split-lines
+                            (map #(str/split % #","))) ]
+          (is (< 1 (count (distinct (map first geometry)))) "more than one column")
+          (is (< 1 (count (distinct (map second geometry)))) "more than one row")))
+      (testing "every role session survives untouched, so handoff delivery still resolves"
+        (doseq [role roles]
+          (is (= 0 (:exit (run {:dir root :ok? false}
+                               "tmux" "-S" sock "has-session" "-t" (str "swarmforge-" role)))))))
+      (testing "a second role does not build a second grid"
+        (grid-eval {:env {"WORKING_DIR" (str root)
+                          "TMUX_SOCKET" sock
+                          "SWARMFORGE_GRID_TERMINAL" "none"}}
+                   "terminal_open_session swarmforge-coder 'SwarmForge Coder'")
+        (is (= (count roles)
+               (count (str/split-lines
+                       (str/trim (:out (run {:dir root} "tmux" "-S" sock "list-panes"
+                                            "-t" "swarmforge-grid" "-F" "#{pane_id}"))))))))
+      (finally
+        (run {:dir root :ok? false} "tmux" "-S" sock "kill-server")
+        (fs/delete-tree root)))))
+
+(deftest grid-viewer-session-dies-with-the-roles-it-was-watching
+  (let [root (tmp-dir)
+        sock (str (fs/path root "swarm.sock"))
+        roles ["coder" "cleaner"]]
+    (try
+      (start-role-sessions! root sock roles)
+      (grid-eval {:env {"WORKING_DIR" (str root)
+                        "TMUX_SOCKET" sock
+                        "SWARMFORGE_GRID_TERMINAL" "none"}}
+                 "terminal_open_session swarmforge-coder 'SwarmForge Coder'")
+      (is (= 0 (:exit (run {:dir root :ok? false} "tmux" "-S" sock "has-session" "-t" "swarmforge-grid"))))
+      (testing "cleanup kills the role sessions, and the viewer has nothing left to attach"
+        (doseq [role roles]
+          (run {:dir root :ok? false} "tmux" "-S" sock "kill-session" "-t" (str "swarmforge-" role)))
+        (Thread/sleep 1500)
+        (is (not= 0 (:exit (run {:dir root :ok? false}
+                                "tmux" "-S" sock "has-session" "-t" "swarmforge-grid")))
+            "the viewer session must not outlive the swarm"))
+      (finally
+        (run {:dir root :ok? false} "tmux" "-S" sock "kill-server")
+        (fs/delete-tree root)))))
