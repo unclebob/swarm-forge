@@ -253,6 +253,66 @@
       (finally
         (fs/delete-tree root)))))
 
+(deftest opencode-launch-command-passes-initial-prompt
+  (let [root (tmp-dir)]
+    (try
+      (let [result (run {:dir root}
+                        (script "swarmforge.bb")
+                        "--test-launch-command"
+                        (str root)
+                        "opencode")
+            command (:out result)]
+        (is (str/includes? command "opencode '"))
+        (is (str/includes? command "--prompt \"$(cat "))
+        (is (str/includes? command ".swarmforge/prompts/coder.md"))
+        (is (not (str/includes? command "opencode run")))
+        (is (fs/exists? (fs/path root ".swarmforge/prompts/coder.md"))))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest opencode-launch-command-passes-extra-cli-args
+  (let [root (tmp-dir)]
+    (try
+      (let [result (run {:dir root}
+                        (script "swarmforge.bb")
+                        "--test-launch-command"
+                        (str root)
+                        "opencode"
+                        "--model provider/model-a")
+            command (:out result)]
+        (is (str/includes? command "--model provider/model-a"))
+        (is (re-find #"--model provider/model-a" command)))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest opencode-launch-command-applies-swarmforge-model-env
+  (let [root (tmp-dir)]
+    (try
+      (let [result (run {:dir root :env {"SWARMFORGE_MODEL" "provider/model-a"}}
+                        (script "swarmforge.bb")
+                        "--test-launch-command"
+                        (str root)
+                        "opencode")
+            command (:out result)]
+        (is (str/includes? command "--model 'provider/model-a'")))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest opencode-launch-command-per-role-model-wins-over-env
+  (let [root (tmp-dir)]
+    (try
+      (let [result (run {:dir root :env {"SWARMFORGE_MODEL" "provider/model-a"}}
+                        (script "swarmforge.bb")
+                        "--test-launch-command"
+                        (str root)
+                        "opencode"
+                        "--model provider/model-b")
+            command (:out result)]
+        (is (str/includes? command "--model provider/model-b"))
+        (is (not (str/includes? command "--model 'provider/model-a'"))))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest window-watchdog-rewrites-window-state-and-id-list
   (let [root (tmp-dir)
         state-file (fs/path root "windows.tsv")
