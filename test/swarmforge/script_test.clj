@@ -262,9 +262,10 @@
                         (str root)
                         "opencode")
             command (:out result)]
-        (is (str/includes? command "opencode run --dir "))
-        (is (str/includes? command "$(cat "))
+        (is (str/includes? command "opencode '"))
+        (is (str/includes? command "--prompt \"$(cat "))
         (is (str/includes? command ".swarmforge/prompts/coder.md"))
+        (is (not (str/includes? command "opencode run")))
         (is (fs/exists? (fs/path root ".swarmforge/prompts/coder.md"))))
       (finally
         (fs/delete-tree root)))))
