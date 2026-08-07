@@ -1,0 +1,18 @@
+# Copy this file to the target project's swarmforge/local-agent.conf.
+# The endpoint must expose OpenAI-compatible /v1/chat/completions and /v1/models.
+
+# Use either base_url, or host + port.
+# base_url=http://127.0.0.1:1234/v1
+host=127.0.0.1
+port=1234
+
+# Leave empty to discover the first model from GET /v1/models.
+model=
+
+# Usually empty for local servers. Set it if your server requires a token.
+api_key=
+
+timeout=120
+max_tokens=4096
+temperature=0.2
+auto_approve=false

@@ -166,7 +166,7 @@
                   (fail! (str red "Error:" reset " Duplicate worktree '" worktree "' in " (:config-file ctx))))
                 (when (or (str/includes? worktree "/") (#{"." ".."} worktree))
                   (fail! (str red "Error:" reset " Invalid worktree '" worktree "' for role '" role "'")))
-                (when-not (#{"claude" "codex" "copilot" "grok"} agent)
+                (when-not (#{"claude" "codex" "copilot" "grok" "local"} agent)
                   (fail! (str red "Error:" reset " Unsupported agent '" agent "' for role '" role "'")))
                 (when-not (#{"task" "batch"} receive-mode)
                   (fail! (str red "Error:" reset " Invalid receive mode '" receive-mode "' for role '" role "' on line " line-no ": expected task or batch")))
@@ -290,8 +290,13 @@
     (fail! (str red "Error:" reset " '" command "' is required but not installed."))))
 
 (defn check-backend-dependencies! [ctx]
-  (doseq [agent (map :agent (:roles ctx))]
-    (check-dependency! agent)))
+  (doseq [agent (set (map :agent (:roles ctx)))]
+    (if (= agent "local")
+      (do
+        (check-dependency! (or (System/getenv "SWARMFORGE_PYTHON") "python3"))
+        (when-not (fs/exists? (fs/path (:script-dir ctx) "swarmforge-local-agent.py"))
+          (fail! (str red "Error:" reset " Local agent backend script not found in " (:script-dir ctx)))))
+      (check-dependency! agent))))
 
 (defn create-role-session! [ctx session title]
   (sh "tmux" "-S" (:tmux-socket ctx) "new-session" "-d" "-s" session "-n" agent-window)
@@ -320,6 +325,9 @@
     "--permission-mode bypassPermissions "
     "--permission-mode acceptEdits "))
 
+(defn local-python-command []
+  (or (System/getenv "SWARMFORGE_PYTHON") "python3"))
+
 (defn launch-command [ctx index row]
   (let [role (:role row)
         agent (:agent row)
@@ -339,7 +347,13 @@
                   "claude" (str "claude --append-system-prompt-file " (sq (str prompt-file)) " --permission-mode acceptEdits -n " (sq (str "SwarmForge " display)) " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
                   "codex" (str "codex -C " (sq (str role-worktree)) " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
                   "copilot" (str "copilot -C " (sq (str role-worktree)) " --name " (sq (str "SwarmForge " display)) " " (extra-args-prefix row) "-i \"$(cat " (sq (str prompt-file)) ")\"")
-                  "grok" (str "grok --cwd " (sq (str role-worktree)) " " (grok-permission-prefix row) (extra-args-prefix row) "--rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\"")))
+                  "grok" (str "grok --cwd " (sq (str role-worktree)) " " (grok-permission-prefix row) (extra-args-prefix row) "--rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\"")
+                  "local" (str (local-python-command) " "
+                                (sq (fs/path role-script-dir "swarmforge-local-agent.py"))
+                                " --cwd " (sq role-worktree)
+                                " --prompt-file " (sq prompt-file)
+                                " --config-file " (sq (fs/path role-worktree "swarmforge" "local-agent.conf"))
+                                " " (extra-args-prefix row))))
       (= index 0)
       (str "; exit_code=$?; SWARMFORGE_TERMINAL_BACKEND=" (sq (:terminal-backend ctx))
            " nohup " (sq (str (fs/path (:script-dir ctx) "swarm-cleanup.sh")))
