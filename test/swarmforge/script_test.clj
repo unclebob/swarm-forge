@@ -237,6 +237,25 @@
       (finally
         (fs/delete-tree root)))))
 
+(deftest vibe-launch-command-is-programmatic-and-safe-by-default
+  (let [root (tmp-dir)]
+    (try
+      (let [result (run {:dir root}
+                        (script "swarmforge.bb")
+                        "--test-launch-command"
+                        (str root)
+                        "vibe"
+                        "--max-turns 2 --max-tokens 4096 --max-price 0.10")
+            command (:out result)]
+        (is (str/includes? command "vibe --workdir '"))
+        (is (str/includes? command "--trust --agent accept-edits --output streaming"))
+        (is (str/includes? command "--max-turns 2 --max-tokens 4096 --max-price 0.10 -p"))
+        (is (str/includes? command ".swarmforge/prompts/coder.md"))
+        (is (not (str/includes? command "--auto-approve")))
+        (is (not (str/includes? command "--yolo"))))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest grok-launch-command-uses-bypass-permissions-with-always-approve
   (let [root (tmp-dir)]
     (try
