@@ -93,7 +93,7 @@ SwarmForge is a lightweight, tmux-based orchestration layer that:
 - Launches a **config-driven swarm** from a project-local `swarmforge/swarmforge.conf`
 - Creates one tmux session per configured role and opens a terminal surface for each role when the selected backend supports it
 - Reads behavior from project-local `swarmforge/roles/<role>.prompt` files plus a layered `swarmforge/constitution.prompt`
-- Supports per-role backends such as `claude`, `codex`, `copilot`, or `grok`
+- Supports per-role backends such as `claude`, `codex`, `copilot`, `grok`, or `vibe`
 - Puts the shared `swarmforge/scripts/` directory on each agent's `PATH`, including handoff helpers for active swarm communication
 - Creates git worktrees under `.worktrees/` for roles assigned to dedicated worktree names
 - Initializes a git repository in a new working directory when needed
@@ -104,7 +104,7 @@ SwarmForge is a lightweight, tmux-based orchestration layer that:
 - **Config-Driven Topology** — The swarm shape comes from `swarmforge/swarmforge.conf`, not hardcoded shell variables.
 - **Project-Local Roles** — Each role is defined by `swarmforge/roles/<role>.prompt` in the working tree being orchestrated.
 - **Layered Constitution** — `swarmforge/constitution.prompt` directs agents to read article files under `swarmforge/constitution/articles/`.
-- **Backend Selection Per Role** — A role can launch `claude`, `codex`, `copilot`, or `grok`.
+- **Backend Selection Per Role** — A role can launch `claude`, `codex`, `copilot`, `grok`, or `vibe`. Vibe uses Mistral's own authenticated CLI and launches programmatically with `--trust --agent accept-edits --output streaming`; its role arguments are passed through before `-p` (for example, bounded `--max-turns`, `--max-tokens`, and `--max-price` limits). SwarmForge never adds Vibe's `--auto-approve` or `--yolo` by default.
 - **Observable Swarm** — Open one Terminal window per role and watch the sessions in real time.
 - **Self-Hosted & Lightweight** — Runs locally in tmux and Terminal with minimal machinery.
 
