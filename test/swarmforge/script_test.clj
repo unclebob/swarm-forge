@@ -253,6 +253,23 @@
       (finally
         (fs/delete-tree root)))))
 
+(deftest swarmforge-role-only-instruction-profile-is-explicit-and-bounded
+  (let [root (tmp-dir)]
+    (try
+      (let [result (run {:dir root
+                         :env {"SWARMFORGE_INSTRUCTION_PROFILE" "role-only"}}
+                        (script "swarmforge.bb")
+                        "--test-launch-command"
+                        (str root)
+                        "opencode")
+            prompt (slurp (str (fs/path root ".swarmforge/prompts/coder.md")))]
+        (is (str/includes? (:out result) "opencode '"))
+        (is (str/includes? prompt "bounded smoke workflow"))
+        (is (str/includes? prompt "Read swarmforge/roles/coder.prompt"))
+        (is (not (str/includes? prompt "Read swarmforge/constitution.prompt"))))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest grok-launch-command-uses-bypass-permissions-with-always-approve
   (let [root (tmp-dir)]
     (try

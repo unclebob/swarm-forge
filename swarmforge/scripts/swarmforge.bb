@@ -298,10 +298,21 @@
   (sh "tmux" "-S" (:tmux-socket ctx) "rename-window" "-t" (str session ":" agent-window) title)
   (sh "tmux" "-S" (:tmux-socket ctx) "set-window-option" "-t" (str session ":" title) "allow-rename" "off"))
 
+(defn instruction-profile []
+  ;; A project may opt into this only for a bounded, non-product smoke run.
+  ;; Normal swarms retain the constitution-first recursive instruction.
+  (case (System/getenv "SWARMFORGE_INSTRUCTION_PROFILE")
+    "role-only" :role-only
+    :standard))
+
 (defn write-agent-instruction-file! [role prompt-file]
   (spit (str prompt-file)
-        (str "Read swarmforge/constitution.prompt, then read every file it refers to recursively, and obey all of those instructions.\n"
-             "Read swarmforge/roles/" role ".prompt, then read every file it refers to recursively, and follow all of those instructions.\n")))
+        (case (instruction-profile)
+          :role-only
+          (str "This is a bounded smoke workflow. Read swarmforge/roles/" role
+               ".prompt and follow it exactly. Do not read project constitution files unless that role prompt explicitly requires them.\n")
+          (str "Read swarmforge/constitution.prompt, then read every file it refers to recursively, and obey all of those instructions.\n"
+               "Read swarmforge/roles/" role ".prompt, then read every file it refers to recursively, and follow all of those instructions.\n"))))
 
 (defn extra-args-prefix [row]
   (let [args (:extra-args row)]
