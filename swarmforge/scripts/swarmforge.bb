@@ -166,7 +166,7 @@
                   (fail! (str red "Error:" reset " Duplicate worktree '" worktree "' in " (:config-file ctx))))
                 (when (or (str/includes? worktree "/") (#{"." ".."} worktree))
                   (fail! (str red "Error:" reset " Invalid worktree '" worktree "' for role '" role "'")))
-                (when-not (#{"claude" "codex" "copilot" "grok"} agent)
+                (when-not (#{"claude" "codex" "copilot" "grok" "opencode"} agent)
                   (fail! (str red "Error:" reset " Unsupported agent '" agent "' for role '" role "'")))
                 (when-not (#{"task" "batch"} receive-mode)
                   (fail! (str red "Error:" reset " Invalid receive mode '" receive-mode "' for role '" role "' on line " line-no ": expected task or batch")))
@@ -298,10 +298,21 @@
   (sh "tmux" "-S" (:tmux-socket ctx) "rename-window" "-t" (str session ":" agent-window) title)
   (sh "tmux" "-S" (:tmux-socket ctx) "set-window-option" "-t" (str session ":" title) "allow-rename" "off"))
 
+(defn instruction-profile []
+  ;; A project may opt into this only for a bounded, non-product smoke run.
+  ;; Normal swarms retain the constitution-first recursive instruction.
+  (case (System/getenv "SWARMFORGE_INSTRUCTION_PROFILE")
+    "role-only" :role-only
+    :standard))
+
 (defn write-agent-instruction-file! [role prompt-file]
   (spit (str prompt-file)
-        (str "Read swarmforge/constitution.prompt, then read every file it refers to recursively, and obey all of those instructions.\n"
-             "Read swarmforge/roles/" role ".prompt, then read every file it refers to recursively, and follow all of those instructions.\n")))
+        (case (instruction-profile)
+          :role-only
+          (str "This is a bounded smoke workflow. Read swarmforge/roles/" role
+               ".prompt and follow it exactly. Do not read project constitution files unless that role prompt explicitly requires them.\n")
+          (str "Read swarmforge/constitution.prompt, then read every file it refers to recursively, and obey all of those instructions.\n"
+               "Read swarmforge/roles/" role ".prompt, then read every file it refers to recursively, and follow all of those instructions.\n"))))
 
 (defn extra-args-prefix [row]
   (let [args (:extra-args row)]
@@ -339,7 +350,8 @@
                   "claude" (str "claude --append-system-prompt-file " (sq (str prompt-file)) " --permission-mode acceptEdits -n " (sq (str "SwarmForge " display)) " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
                   "codex" (str "codex -C " (sq (str role-worktree)) " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
                   "copilot" (str "copilot -C " (sq (str role-worktree)) " --name " (sq (str "SwarmForge " display)) " " (extra-args-prefix row) "-i \"$(cat " (sq (str prompt-file)) ")\"")
-                  "grok" (str "grok --cwd " (sq (str role-worktree)) " " (grok-permission-prefix row) (extra-args-prefix row) "--rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\"")))
+                  "grok" (str "grok --cwd " (sq (str role-worktree)) " " (grok-permission-prefix row) (extra-args-prefix row) "--rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\"")
+                  "opencode" (str "opencode " (sq (str role-worktree)) " " (extra-args-prefix row) "--prompt \"$(cat " (sq (str prompt-file)) ")\"")))
       (= index 0)
       (str "; exit_code=$?; SWARMFORGE_TERMINAL_BACKEND=" (sq (:terminal-backend ctx))
            " nohup " (sq (str (fs/path (:script-dir ctx) "swarm-cleanup.sh")))
@@ -389,10 +401,16 @@
   (fs/delete-if-exists (fs/path (:daemon-dir ctx) "stop"))
   (let [command (into (vec (sleep-inhibitor-prefix))
                       [(str (fs/path (:script-dir ctx) "handoffd.bb"))
-                       (str (:working-dir ctx))])]
-    (process/process command
-                     {:out (str (:handoff-daemon-log ctx))
-                      :err :out})
+                       (str (:working-dir ctx))])
+        detached-command (str "nohup "
+                              (str/join " " (map sq command))
+                              " </dev/null >>"
+                              (sq (str (:handoff-daemon-log ctx)))
+                              " 2>&1 &")]
+    ;; A babashka-managed child can be terminated with its launcher when the
+    ;; terminal bridge detaches.  The handoff daemon must instead outlive that
+    ;; bridge and follow its explicit stop-file protocol.
+    (sh "zsh" "-c" detached-command)
     (println (str green "Started handoff daemon"
                   (when (> (count command) 2) " with OS sleep prevention")
                   "."
@@ -467,7 +485,7 @@
      :script-dir script-dir
      :swarm-forge-dir swarm-forge-dir
      :worktrees-dir (fs/path working-dir ".worktrees")
-     :config-file (fs/path swarm-forge-dir "swarmforge.conf")
+     :config-file (fs/path swarm-forge-dir (or (System/getenv "SWARMFORGE_CONFIG") "swarmforge.conf"))
      :roles-dir (fs/path swarm-forge-dir "roles")
      :constitution-file (fs/path swarm-forge-dir "constitution.prompt")
      :state-dir state-dir

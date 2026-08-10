@@ -3,3 +3,5 @@
 .claude/
 .swarmforge/
 .worktrees/
+.tmp/
+projects/
