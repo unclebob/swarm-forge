@@ -278,6 +278,8 @@ Use `ghostty` when you want SwarmForge to open Ghostty tabs instead of the defau
 
 On Linux, SwarmForge scans `gnome-terminal`, `konsole`, `xfce4-terminal`, `tilix`, `alacritty`, `kitty`, `foot`, `xterm`, and `x-terminal-emulator`, in that order, and opens the first one found. Set `SWARMFORGE_LINUX_TERMINAL=<emulator>` to force a specific one instead.
 
+By default every role's tmux window is linked into the first role's session, so a single terminal window shows every agent (switch with `prefix+w` or `prefix+<number>`). Set `SWARMFORGE_SEPARATE_WINDOWS=1` to open one terminal surface per role instead.
+
 ### Adding A Terminal Backend
 
 The shared terminal backends are carried on `main` under `swarmforge/scripts/terminal-adapters/`. Runnable branches copy those scripts at startup. To add a new backend, update `main` by creating one file named after the backend:

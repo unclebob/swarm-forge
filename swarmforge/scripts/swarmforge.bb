@@ -431,7 +431,49 @@
 (defn terminal-call-out [ctx command & args]
   (str/trim (:out (apply terminal-call ctx command args))))
 
-(defn open-terminal-surfaces! [ctx]
+(defn combine-windows? []
+  (not (#{"1" "true" "yes"} (System/getenv "SWARMFORGE_SEPARATE_WINDOWS"))))
+
+(defn link-role-windows! [ctx]
+  (let [hub-session (-> ctx :roles first :session)]
+    (doseq [row (rest (:roles ctx))]
+      (sh "tmux" "-S" (:tmux-socket ctx) "link-window"
+          "-s" (str (:session row) ":" (:display-name row))
+          "-t" (str hub-session ":")))))
+
+(defn open-single-terminal-surface! [ctx]
+  (link-role-windows! ctx)
+  (let [hub-row (-> ctx :roles first)
+        tracks-windows? (terminal-call-ok? ctx "terminal_backend_tracks_windows")]
+    (if (terminal-call-ok? ctx "terminal_backend_can_open_sessions")
+      (do
+        (println (str "Opening one " (terminal-call-out ctx "terminal_backend_label")
+                      " window with every session as a tmux window (switch with prefix+w or prefix+<number>)..."))
+        (when tracks-windows?
+          (spit (str (:window-ids-file ctx)) "")
+          (spit (str (:window-state-file ctx)) ""))
+        (let [window-id (terminal-call-out ctx "terminal_open_session" (:session hub-row) (str "SwarmForge " (:display-name hub-row)) "")]
+          (if tracks-windows?
+            (do
+              (spit (str (:window-ids-file ctx)) (str window-id "\n") :append true)
+              (spit (str (:window-state-file ctx))
+                    (format "%d\t%s\t%s\t%s\n" 1 window-id (:session hub-row) (str "SwarmForge " (:display-name hub-row)))
+                    :append true)
+              (process/process [(str (fs/path (:script-dir ctx) "swarm-window-watchdog.sh"))
+                                (str (:window-state-file ctx))
+                                (str (:window-ids-file ctx))
+                                "1"
+                                (:tmux-socket ctx)
+                                (str (:working-dir ctx))
+                                (:terminal-backend ctx)]
+                               {:out (str (:window-watchdog-log ctx))
+                                :err :out}))
+            (println (str yellow (terminal-call-out ctx "terminal_backend_label") " surfaces are not trackable; window watchdog is disabled for this backend." reset)))))
+      (do
+        (println (str yellow "No terminal backend found; attaching current shell to '" (:session hub-row) "' instead." reset))
+        (sh "tmux" "-S" (:tmux-socket ctx) "attach-session" "-t" (:session hub-row))))))
+
+(defn open-separate-terminal-surfaces! [ctx]
   (if (terminal-call-ok? ctx "terminal_backend_can_open_sessions")
     (do
       (println (str "Opening separate " (terminal-call-out ctx "terminal_backend_label") " surfaces for each session..."))
@@ -465,6 +507,11 @@
     (do
       (println (str yellow "No terminal backend found; attaching current shell to '" (-> ctx :roles first :session) "' instead." reset))
       (sh "tmux" "-S" (:tmux-socket ctx) "attach-session" "-t" (-> ctx :roles first :session)))))
+
+(defn open-terminal-surfaces! [ctx]
+  (if (combine-windows?)
+    (open-single-terminal-surface! ctx)
+    (open-separate-terminal-surfaces! ctx)))
 
 (defn context [working-dir]
   (let [working-dir (fs/absolutize (fs/path working-dir))
@@ -559,7 +606,9 @@
           (println (str "  " (:display-name row) ": " (:session row))))
         (println)
         (println (str green "Tip: Write a handoff draft and run swarm_handoff.sh while the swarm is running." reset))
-        (println (str green "Tip: Reattach manually with 'tmux -S " (:tmux-socket ctx) " attach-session -t <session-name>' if needed." reset))
+        (if (combine-windows?)
+          (println (str green "Tip: All sessions share one tmux window; switch agents with prefix+w or prefix+<number>. Set SWARMFORGE_SEPARATE_WINDOWS=1 to open one terminal per session instead." reset))
+          (println (str green "Tip: Reattach manually with 'tmux -S " (:tmux-socket ctx) " attach-session -t <session-name>' if needed." reset)))
         (println)
         (open-terminal-surfaces! ctx)))))
 
