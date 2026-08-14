@@ -3,6 +3,7 @@
 (ns swarmforge
   (:require [babashka.fs :as fs]
             [babashka.process :as process]
+            [cheshire.core :as json]
             [clojure.string :as str]))
 
 (def session-prefix "swarmforge")
@@ -274,6 +275,47 @@
     (when-not (or (fs/exists? (fs/path worktree-path ".git"))
                   (fs/directory? (fs/path worktree-path ".git")))
       (sh "git" "-C" (str (:working-dir ctx)) "worktree" "add" "--force" "-B" branch-name (str worktree-path) "HEAD"))))
+
+(defn claude-config-path []
+  (when-let [home (System/getenv "HOME")]
+    (fs/path home ".claude.json")))
+
+(defn trust-worktree-dirs!
+  "Pre-accepts the Claude Code workspace-trust dialog for every worktree a
+   'claude' role runs in. Without this, each worktree is a directory Claude
+   Code has never seen before, so the first interactive launch inside a tmux
+   pane blocks on the trust prompt with nobody there to press 'yes'."
+  [ctx]
+  (try
+    (when-let [config-path (claude-config-path)]
+      (when (fs/exists? config-path)
+        (let [dirs (->> (:roles ctx)
+                        (filter #(= "claude" (:agent %)))
+                        (map #(str (fs/canonicalize (:worktree-path %))))
+                        (cons (str (fs/canonicalize (:working-dir ctx))))
+                        distinct)
+              backup-path (str config-path ".swarmforge.bak")
+              config (json/parse-string (slurp (str config-path)) true)
+              projects (:projects config {})
+              already-trusted? (fn [dir] (get-in projects [(keyword dir) :hasTrustDialogAccepted]))]
+          (when (some (complement already-trusted?) dirs)
+            (fs/copy config-path backup-path {:replace-existing true})
+            (let [updated-projects (reduce
+                                     (fn [acc dir]
+                                       (update acc (keyword dir)
+                                               (fn [entry]
+                                                 (-> (or entry {:allowedTools []})
+                                                     (assoc :hasTrustDialogAccepted true)))))
+                                     projects
+                                     dirs)
+                  tmp-path (str config-path ".swarmforge.tmp")]
+              (spit tmp-path (json/generate-string (assoc config :projects updated-projects)))
+              (fs/move tmp-path config-path {:replace-existing true})
+              (println (str green "Pre-trusted " (count dirs) " worktree director" (if (= 1 (count dirs)) "y" "ies")
+                            " in " config-path " (backup: " backup-path ")." reset)))))))
+    (catch Exception e
+      (println (str yellow "Could not pre-accept the Claude Code trust dialog (" (.getMessage e) "). "
+                    "Agents may block on a trust prompt in their tmux pane on first launch." reset)))))
 
 (defn prepare-handoff-dirs! [ctx]
   (doseq [row (:roles ctx)
@@ -575,6 +617,7 @@
       (check-backend-dependencies! ctx)
       (prepare-workspace! ctx)
       (prepare-worktrees! ctx)
+      (trust-worktree-dirs! ctx)
       (prepare-handoff-dirs! ctx)
       (let [ctx (assoc ctx :terminal-backend (detect-terminal-backend))]
         (stop-handoff-daemon! ctx)
