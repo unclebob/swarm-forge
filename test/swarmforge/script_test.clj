@@ -318,6 +318,27 @@
       (finally
         (fs/delete-tree root)))))
 
+(deftest permission-mode-prefix-honors-auto-approve-flags
+  (let [root (tmp-dir)]
+    (try
+      (let [yolo-result (run {:dir root}
+                             (script "swarmforge.bb")
+                             "--test-launch-command"
+                             (str root)
+                             "claude"
+                             "--yolo")
+            default-result (run {:dir root}
+                                (script "swarmforge.bb")
+                                "--test-launch-command"
+                                (str root)
+                                "claude")]
+        (is (str/includes? (:out yolo-result) "--permission-mode bypassPermissions"))
+        (is (not (str/includes? (:out yolo-result) "--permission-mode acceptEdits")))
+        (is (str/includes? (:out default-result) "--permission-mode acceptEdits"))
+        (is (not (str/includes? (:out default-result) "bypassPermissions"))))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest window-watchdog-rewrites-window-state-and-id-list
   (let [root (tmp-dir)
         state-file (fs/path root "windows.tsv")
