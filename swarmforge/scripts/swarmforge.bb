@@ -47,7 +47,23 @@
     ("terminal" "terminal-app" "terminal.app") "terminal-app"
     ("windows" "windows-terminal" "wt") "windows-terminal"
     ("none" "current" "fallback") "none"
+    ("linux" "linux-terminal" "gnome-terminal" "konsole" "xfce4-terminal"
+     "tilix" "alacritty" "kitty" "foot" "xterm" "x-terminal-emulator") "linux-terminal"
     (str/lower-case backend)))
+
+(defn uname []
+  (str/trim (:out (process/sh {:continue true} "uname" "-s"))))
+
+(def linux-terminal-candidates
+  ["gnome-terminal" "konsole" "xfce4-terminal" "tilix" "alacritty" "kitty" "foot" "xterm" "x-terminal-emulator"])
+
+(defn linux-display-available? []
+  (or (not (str/blank? (System/getenv "DISPLAY")))
+      (not (str/blank? (System/getenv "WAYLAND_DISPLAY")))))
+
+(defn linux-terminal-available? []
+  (and (linux-display-available?)
+       (some command-exists? linux-terminal-candidates)))
 
 (defn detect-terminal-backend []
   (if-let [backend (System/getenv "SWARMFORGE_TERMINAL")]
@@ -57,6 +73,7 @@
                                       "iterm2"
                                       "terminal-app")
       (command-exists? "wt.exe") "windows-terminal"
+      (and (= (uname) "Linux") (linux-terminal-available?)) "linux-terminal"
       :else "none")))
 
 (defn display-name-for-role [role]
@@ -227,7 +244,7 @@
    "swarm-terminal-adapter.sh" "swarmforge.sh" "swarmforge.bb"])
 
 (def terminal-helpers
-  ["terminal-app.sh" "iterm2.sh" "ghostty.sh" "windows-terminal.sh" "none.sh"])
+  ["terminal-app.sh" "iterm2.sh" "ghostty.sh" "windows-terminal.sh" "linux-terminal.sh" "none.sh"])
 
 (defn check-helper-scripts! [ctx]
   (doseq [helper required-helpers]
@@ -362,9 +379,6 @@
   (process/sh {:continue true}
               "bb" (str (fs/path (:script-dir ctx) "stop_handoff_daemon.bb"))
               (str (:working-dir ctx))))
-
-(defn uname []
-  (str/trim (:out (process/sh {:continue true} "uname" "-s"))))
 
 (defn linux-systemd-running? []
   (let [result (process/sh {:continue true} "systemctl" "is-system-running")
@@ -576,6 +590,9 @@
 (defn test-sleep-inhibitor-prefix! []
   (println (str/join " " (or (sleep-inhibitor-prefix) []))))
 
+(defn test-normalize-terminal-backend! [backend]
+  (println (normalize-terminal-backend backend)))
+
 (defn -main [& args]
   (case (first args)
     "--test-parse" (test-parse! (or (second args) (System/getProperty "user.dir")))
@@ -586,6 +603,7 @@
     "--test-agent-start-delay" (println (env-long "SWARMFORGE_AGENT_START_DELAY_MS" 1500))
     "--test-sleep-inhibitor-prefix" (test-sleep-inhibitor-prefix!)
     "--test-tmux-base-indexes" (test-tmux-base-indexes! (second args))
+    "--test-normalize-terminal-backend" (test-normalize-terminal-backend! (second args))
     (run-main! (or (first args) (System/getProperty "user.dir")))))
 
 (apply -main *command-line-args*)

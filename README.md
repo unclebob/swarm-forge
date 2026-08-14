@@ -261,6 +261,7 @@ Default detection:
 
 - If AppleScript is available, SwarmForge opens macOS Terminal.app windows.
 - Otherwise, if `wt.exe` is available, SwarmForge opens Windows Terminal windows.
+- Otherwise, on Linux with a display (`$DISPLAY` or `$WAYLAND_DISPLAY`) and a known terminal emulator on `$PATH`, SwarmForge opens a Linux terminal window.
 - Otherwise, SwarmForge attaches the cleanup tmux session in the current shell.
 
 After copying a runnable branch, set `SWARMFORGE_TERMINAL` to override detection:
@@ -269,10 +270,13 @@ After copying a runnable branch, set `SWARMFORGE_TERMINAL` to override detection
 SWARMFORGE_TERMINAL=ghostty ./swarm
 SWARMFORGE_TERMINAL=terminal-app ./swarm
 SWARMFORGE_TERMINAL=windows-terminal ./swarm
+SWARMFORGE_TERMINAL=linux-terminal ./swarm
 SWARMFORGE_TERMINAL=none ./swarm
 ```
 
-Use `ghostty` when you want SwarmForge to open Ghostty tabs instead of the default Terminal.app windows. Use `windows-terminal` when you want SwarmForge to open Windows Terminal windows from WSL. Use `none` when you want SwarmForge to skip terminal automation and attach the cleanup tmux session in the current shell.
+Use `ghostty` when you want SwarmForge to open Ghostty tabs instead of the default Terminal.app windows. Use `windows-terminal` when you want SwarmForge to open Windows Terminal windows from WSL. Use `linux-terminal` to force the Linux desktop adapter. Use `none` when you want SwarmForge to skip terminal automation and attach the cleanup tmux session in the current shell.
+
+On Linux, SwarmForge scans `gnome-terminal`, `konsole`, `xfce4-terminal`, `tilix`, `alacritty`, `kitty`, `foot`, `xterm`, and `x-terminal-emulator`, in that order, and opens the first one found. Set `SWARMFORGE_LINUX_TERMINAL=<emulator>` to force a specific one instead.
 
 ### Adding A Terminal Backend
 
@@ -333,3 +337,5 @@ Each visible agent window is attached to a tmux session. That means terminal sel
 The first window in `swarmforge.conf` is the cleanup window. Closing that top configured window is the intentional shutdown path: SwarmForge tears down the tmux sessions, closes the remaining tracked windows, and shuts down the swarm.
 
 Closing any other tracked window is non-destructive. The watchdog reopens that window and attaches it back to the same tmux session, so the agent state and terminal history remain intact. This is often the simplest way to recover a window that has landed in an unfamiliar tmux mode or otherwise feels stuck.
+
+The `linux-terminal` backend does not track windows — there is no cross-emulator way to query or close a specific window on Linux — so the watchdog is inactive there. Closing a Linux terminal window does not reopen it automatically; reattach manually with `tmux -S <socket> attach-session -t <session>` or restart the swarm.

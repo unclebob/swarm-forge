@@ -253,6 +253,71 @@
       (finally
         (fs/delete-tree root)))))
 
+(deftest linux-terminal-adapter-implements-backend-contract
+  (let [root (tmp-dir)
+        bin-dir (fs/path root "bin")
+        log-file (fs/path root "gnome-terminal.log")]
+    (try
+      (fs/create-dirs bin-dir)
+      (write-file (fs/path bin-dir "gnome-terminal")
+                  (str "#!/bin/sh\n"
+                       "printf '%s\\n' \"$*\" > '" (str log-file) "'\n"))
+      (fs/set-posix-file-permissions (fs/path bin-dir "gnome-terminal") "rwxr-xr-x")
+      (let [probe-script (str "source " (script "terminal-adapters/linux-terminal.sh") "\n"
+                              "terminal_backend_can_open_sessions && echo CAN_OPEN || echo CANNOT_OPEN\n"
+                              "terminal_backend_tracks_windows && echo TRACKS || echo NO_TRACKS\n"
+                              "WORKING_DIR=" (str root) "\n"
+                              "TMUX_SOCKET=/tmp/probe.sock\n"
+                              "terminal_open_session probe Probe\n"
+                              "sleep 0.5\n")
+            result (run {:dir root :env {"PATH" (str bin-dir ":" (System/getenv "PATH"))}}
+                        "zsh" "-c" probe-script)]
+        (is (str/includes? (:out result) "CAN_OPEN"))
+        (is (str/includes? (:out result) "NO_TRACKS"))
+        (is (fs/exists? log-file))
+        (is (str/includes? (slurp (str log-file)) "tmux -S /tmp/probe.sock attach-session -t probe")))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest detect-terminal-backend-selects-linux-terminal
+  (let [root (tmp-dir)
+        bin-dir (fs/path root "bin")]
+    (try
+      (fs/create-dirs bin-dir)
+      (write-file (fs/path bin-dir "gnome-terminal") "#!/bin/sh\nexit 0\n")
+      (fs/set-posix-file-permissions (fs/path bin-dir "gnome-terminal") "rwxr-xr-x")
+      (let [probe-script (str "has_command() { command -v \"$1\" &>/dev/null; }\n"
+                              "source " (script "swarm-terminal-adapter.sh") "\n"
+                              "detect_terminal_backend\n")
+            with-display (run {:dir root
+                               :env {"PATH" (str bin-dir ":" (System/getenv "PATH"))
+                                     "DISPLAY" ":0"}}
+                              "zsh" "-c" probe-script)
+            without-display (run {:dir root
+                                  :env {"PATH" (str bin-dir ":" (System/getenv "PATH"))}}
+                                 "zsh" "-c" probe-script)]
+        (is (= "linux-terminal" (str/trim (:out with-display))))
+        (is (= "none" (str/trim (:out without-display)))))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest normalize-terminal-backend-maps-linux-aliases
+  (let [root (tmp-dir)]
+    (try
+      (doseq [alias ["kitty" "linux" "alacritty"]]
+        (let [zsh-result (run {:dir root}
+                              "zsh" "-c"
+                              (str "source " (script "swarm-terminal-adapter.sh") "\n"
+                                   "normalize_terminal_backend " alias))
+              clj-result (run {:dir root}
+                              (script "swarmforge.bb")
+                              "--test-normalize-terminal-backend"
+                              alias)]
+          (is (= "linux-terminal" (str/trim (:out zsh-result))) (str "zsh: " alias))
+          (is (= "linux-terminal" (str/trim (:out clj-result))) (str "clj: " alias))))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest window-watchdog-rewrites-window-state-and-id-list
   (let [root (tmp-dir)
         state-file (fs/path root "windows.tsv")

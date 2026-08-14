@@ -18,10 +18,27 @@ normalize_terminal_backend() {
     none|current|fallback)
       echo "none"
       ;;
+    linux|linux-terminal|gnome-terminal|konsole|xfce4-terminal|tilix|alacritty|kitty|foot|xterm|x-terminal-emulator)
+      echo "linux-terminal"
+      ;;
     *)
       echo "$backend"
       ;;
   esac
+}
+
+_linux_display_available() {
+  [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]
+}
+
+_linux_terminal_available() {
+  _linux_display_available || return 1
+
+  local candidate
+  for candidate in gnome-terminal konsole xfce4-terminal tilix alacritty kitty foot xterm x-terminal-emulator; do
+    has_command "$candidate" && return 0
+  done
+  return 1
 }
 
 detect_terminal_backend() {
@@ -41,6 +58,11 @@ detect_terminal_backend() {
 
   if has_command wt.exe; then
     echo "windows-terminal"
+    return
+  fi
+
+  if [[ "$(uname -s)" == "Linux" ]] && _linux_terminal_available; then
+    echo "linux-terminal"
     return
   fi
 
