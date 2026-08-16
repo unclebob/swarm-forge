@@ -1,0 +1,24 @@
+# Agent Command and Instruction Conventions
+
+## Executables and Protocol Text
+
+- Executable script files are identified by `.sh`, `.bb`, or another explicit
+  executable extension, and should be invoked using their documented name or
+  path.
+- Explicit extensionless entry points, such as `./swarm` and `close-swarm`, are
+  executable only because the documentation identifies them as such.
+- Natural-language instructions and protocol output are not executables. Names
+  such as `merge_and_process`, `TASK`, `PAYLOAD`, and `NO_TASK` must not be
+  treated as commands, scripts, functions, or `PATH` entries.
+- `merge_and_process <sender> <commit>` is generated handoff payload text. Read
+  and follow it as an instruction; do not try to locate an executable with that
+  name.
+
+## PATH Scope
+
+- SwarmForge adds the local `swarmforge/scripts/` directory to each running
+  agent's `PATH` so documented helper scripts can be invoked by name.
+- This local PATH setup does not install the helpers globally or require them
+  to be added to a user's shell profile.
+- Actual runtime dependencies and configured agent backends are separate
+  executable dependencies and must be available to the launched environment.

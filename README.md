@@ -177,6 +177,12 @@ In a runnable branch:
 
 Startup syncs the shared helper scripts into every role worktree under `swarmforge/scripts/` and puts that local directory on the agent's `PATH`. Agents do not send tmux messages directly. The launcher starts `handoffd.bb`, which owns tmux socket access, watches each agent outbox, copies validated handoff files into recipient inboxes, and sends only generic wake-up notifications.
 
+Command names and handoff instructions follow the conventions in
+[`swarmforge/constitution/articles/conventions.prompt`](swarmforge/constitution/articles/conventions.prompt).
+In particular, `.sh`, `.bb`, and other explicitly documented executable names
+refer to files; generated payload text such as `merge_and_process` is an
+instruction, not a command, script, function, or `PATH` entry.
+
 Agents interact with handoffs through three helper scripts:
 
 - `swarm_handoff.sh <draft-file>` validates and queues outbound handoffs.

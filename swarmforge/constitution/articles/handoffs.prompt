@@ -2,6 +2,9 @@
 
 ## Sending Handoffs
 - Write a draft handoff file with only structured headers, then run `swarm_handoff.sh <draft-file>`.
+- Distinguish executable helper names from generated payload instructions; see
+  `conventions.prompt`. In particular, `merge_and_process` is handoff text, not
+  a command, script, function, or `PATH` entry.
 - Use only these message types:
   - `git_handoff`
   - `note`

@@ -21,6 +21,12 @@ The recipient inbox is the task queue. Agents use helper scripts to accept and
 complete inbox items. Queue state is represented by file location, and audit
 timestamps are stored in the handoff file headers.
 
+Executable-file names and natural-language payload instructions follow the
+shared conventions in
+`swarmforge/constitution/articles/conventions.prompt`. In particular,
+`merge_and_process <sender> <commit>` is generated handoff text, not a command,
+script, function, or `PATH` entry.
+
 ## Directory Layout
 
 Each agent worktree owns this structure:
