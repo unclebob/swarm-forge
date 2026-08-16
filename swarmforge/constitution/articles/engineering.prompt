@@ -1,6 +1,7 @@
 # Engineering Rules
 
 ## Startup Tools
+- Treat the current assigned directory or worktree as the source of truth for required project content. Do not search the home directory, filesystem root, or other directories unless the user explicitly prompts you to do so; if required content is unavailable locally, stop and report it.
 - On startup, procure the latest version of each required CRAP, mutation, and DRY tool for the project language directly from the listed `github.com/unclebob/...` repositories and get each one ready to run.
 - Resolve each listed repository at its latest available upstream version before installing or building it.
 - Do not rely on stale cached, vendored, or preinstalled copies when a fresh GitHub install/build is possible in the current environment.

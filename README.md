@@ -14,6 +14,8 @@ SwarmForge is an agent coordination system that facilitates communication betwee
 
 It provides a shared structure for role-specific prompts, worktree assignment, tmux sessions, and message passing so multiple agents can collaborate on the same project without stepping on each other.
 
+Agents should treat the current project directory or assigned worktree as the source of truth for required content. They should not search the home directory, filesystem root, or other directories unless the user explicitly requests it. If required content is not available in the current directory, the agent should report that instead of searching elsewhere.
+
 ## Branches
 
 The runnable SwarmForge configurations live on dedicated branches. Each branch contains the `swarmforge/swarmforge.conf`, local constitution articles, and role prompts for one workflow. At startup, its `./swarm` wrapper copies the shared operational scripts and shared constitution articles from `main` when they are not already present, then launches that branch's local configuration.
