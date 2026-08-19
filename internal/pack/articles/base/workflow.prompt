@@ -1,0 +1,27 @@
+# Workflow Rules
+
+## Worktree Discipline
+- At startup, discover and remember the branch or worktree assigned to your role.
+- If your assigned worktree is `master`, work in the main project checkout on its current branch; do not expect or create a `.worktrees/<role>` directory for that role.
+- Work only in your assigned branch or worktree.
+- Do not inspect, diff, merge, or base work on another branch unless that branch is specifically named in a handoff or explicit user instruction.
+- If handoff helper scripts (`swarm_handoff.sh`, `ready_for_next.sh`, `done_with_current.sh`) are missing from PATH, stop and report the startup failure instead of trying to repair them yourself.
+
+## Announcements
+- Do not add role bylines to announcements or check-in comments.
+
+## Commit Messages
+- Include your role byline in every git commit message in this form: `By <role>.`
+- Example:
+
+```text
+Implement handoff validation
+
+By coder.
+```
+
+## Temporary Files
+- Use `./tmp/` in your assigned worktree for temporary files; do not use `/tmp`.
+
+## Failure Conditions
+- If the expected git layout or assigned worktree is missing, stop and report instead of silently working in the wrong place.

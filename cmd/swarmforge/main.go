@@ -43,7 +43,7 @@ func main() {
 		SilenceErrors: true,
 	}
 
-	root.AddCommand(handoffCmd(), readyCmd(), doneCmd())
+	root.AddCommand(handoffCmd(), readyCmd(), doneCmd(), initCmd(), upCmd())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "swarmforge:", err)
@@ -77,6 +77,35 @@ func doneCmd() *cobra.Command {
 		Short: "Complete the current task or batch and report the next one",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return exitCode(cli.RunDone(realEnv()))
+		},
+	}
+}
+
+func initCmd() *cobra.Command {
+	var packName string
+	cmd := &cobra.Command{
+		Use:   "init [dir]",
+		Short: "Scaffold a new project from an embedded pack",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			env := realEnv()
+			dest := env.Cwd
+			if len(args) == 1 {
+				dest = args[0]
+			}
+			return exitCode(cli.RunInit(env, packName, dest))
+		},
+	}
+	cmd.Flags().StringVar(&packName, "pack", "", "pack to scaffold (see: swarmforge pack list)")
+	return cmd
+}
+
+func upCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "up",
+		Short: "Prepare a swarm: validate config, create worktrees, write state",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return exitCode(cli.RunUp(realEnv()))
 		},
 	}
 }

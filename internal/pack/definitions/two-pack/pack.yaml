@@ -1,0 +1,49 @@
+name: two-pack
+description: "Quick backend workflow: coder -> cleaner -> coder loop, no specification, QA, or property-test roles."
+
+constitution:
+  base: [engineering, handoffs, workflow]
+  project: project.prompt
+
+roles:
+  - name: coder
+    agent: claude
+    worktree: master
+    receive_mode: task
+    extra_args: ["--model", "haiku"]
+    sections:
+      - title: Owns
+        blocks: [owns-implement-behavior]
+      - title: Implementation
+        blocks: [tdd-implementation]
+      - title: Does Not Own
+        blocks: [does-not-own-acceptance-full]
+      - title: Handoff
+        handoff:
+          steps:
+            - "Run unit tests and relevant local verification."
+            - "Commit the behavior change."
+          to: [cleaner]
+          priority: "50"
+
+  - name: cleaner
+    agent: claude
+    worktree: cleaner
+    receive_mode: batch
+    extra_args: ["--model", "sonnet"]
+    sections:
+      - title: Owns
+        blocks: [owns-preserve-behavior-cleanup]
+      - title: Cleanup Order
+        blocks: [cleanup-order]
+      - title: Architecture Rules
+        blocks: [architecture-rules]
+      - title: Does Not Own
+        blocks: [does-not-own-new-behavior-and-acceptance]
+      - title: Handoff
+        handoff:
+          steps:
+            - "Run unit tests and relevant local verification."
+            - "Commit cleanup and hardening changes."
+          to: [coder]
+          priority: "00"

@@ -1,0 +1,69 @@
+# Handoff Rules
+
+## Sending Handoffs
+- Write a draft handoff file with only structured headers, then run `swarm_handoff.sh <draft-file>`.
+- Use only these message types:
+  - `git_handoff`
+  - `note`
+- Do not send `note` handoffs unless the user, role prompt, or constitution
+  explicitly directs you to send one.
+- When blocked by ambiguity, contradiction, or test/specification conflict,
+  stop and ask for clarification; do not send a `note` handoff unless one of
+  the explicit authorities above directed that note.
+- For `git_handoff`, commit first, then write:
+
+```text
+type: git_handoff
+to: <role>[,<role>...]
+priority: NN
+task: <short-stable-task-name>
+commit: <10-character-commit-abbrev>
+```
+
+- When your role is an intermediate step in the pack pipeline, always forward
+  a `git_handoff` to the next role in the chain after completing the inbound
+  task, regardless of what changed. Formatting-only, manifest-only, audit-only,
+  generated metadata, and other non-functional churn still require a forward
+  down the chain.
+- When your role sends the end-of-chain handoff to multiple recipients, those
+  recipients merge only (`merge_and_process`). They do not forward that handoff
+  further. Only this terminal broadcast is merge-only without re-forwarding.
+- Preserve the received task name when forwarding work for the same task. If the
+  handoff starts new work, invent a short stable task name.
+- For `note`, write:
+
+```text
+type: note
+to: <role>[,<role>...]
+priority: NN
+message: <one line, max 80 chars>
+```
+
+- If `swarm_handoff.sh` reports validation errors, repair the draft and rerun it.
+- After a successful send, the helper removes the draft file. If you need to
+  remove a stale draft manually, use `rm <draft-file>`, not `rm -f`.
+- Do not write long handoff bodies. The helper generates the delivered payload.
+- Do not send tmux notifications directly.
+- Do not hand-edit, merge, stage, or commit handoff runtime state.
+
+## Receiving Handoffs
+- When notified, run `ready_for_next.sh`.
+- `ready_for_next.sh` dispatches to the task or batch helper configured for
+  your role.
+- If it prints `NO_TASK`, stop waiting for work.
+- If it prints `TASK: <path>`, treat the printed `PAYLOAD` as the task.
+- If it prints `TASK_NAME: <name>`, use that as the stable task name for any
+  work you forward from that task.
+- If it prints `BATCH: <path>`, treat each printed `BATCH_ITEM` as part of the
+  current batch in helper-delivered order.
+- Use only the task information printed by the helper scripts.
+- If a wake-up arrives while already working on a task, ignore it.
+- When the task or batch is fully complete, run `done_with_current.sh`.
+- `note` handoffs are tasks too; after reading or acting on a note, run
+  `done_with_current.sh` before accepting any other handoff.
+- If `done_with_current.sh` prints `TASK: <path>`, treat the printed `PAYLOAD`
+  as the next task.
+- If `done_with_current.sh` prints `BATCH: <path>`, treat each printed
+  `BATCH_ITEM` as part of the next batch in helper-delivered order.
+- If a done helper prints `NO_TASK`, stop waiting for work.
+- On restart, run `ready_for_next.sh` and follow its output.
