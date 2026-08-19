@@ -5,7 +5,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/torratdev/swarmforge/internal/orchestrator"
+	"github.com/TorratDev/swarm-forge/internal/orchestrator"
 )
 
 // RunDown stops a swarm running in another process: it reads the PID

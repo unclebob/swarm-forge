@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/torratdev/swarmforge/internal/pack"
+	"github.com/TorratDev/swarm-forge/internal/pack"
 )
 
 // RunPackList prints the names and descriptions of every embedded pack.

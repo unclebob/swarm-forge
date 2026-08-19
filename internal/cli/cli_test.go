@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/torratdev/swarmforge/internal/cli"
-	"github.com/torratdev/swarmforge/internal/daemon"
-	"github.com/torratdev/swarmforge/internal/state"
+	"github.com/TorratDev/swarm-forge/internal/cli"
+	"github.com/TorratDev/swarm-forge/internal/daemon"
+	"github.com/TorratDev/swarm-forge/internal/state"
 )
 
 type noopNotifier struct{}

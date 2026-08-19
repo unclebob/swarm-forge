@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/torratdev/swarmforge/internal/ptyagent"
+	"github.com/TorratDev/swarm-forge/internal/ptyagent"
 )
 
 // ansiSpikeScript is a synthetic "heavy TUI" program: it switches into

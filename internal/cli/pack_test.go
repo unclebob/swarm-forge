@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/torratdev/swarmforge/internal/cli"
+	"github.com/TorratDev/swarm-forge/internal/cli"
 )
 
 func testEnv(stdout, stderr *bytes.Buffer) cli.Env {

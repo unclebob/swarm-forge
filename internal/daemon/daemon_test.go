@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/torratdev/swarmforge/internal/handoff"
-	"github.com/torratdev/swarmforge/internal/state"
+	"github.com/TorratDev/swarm-forge/internal/handoff"
+	"github.com/TorratDev/swarm-forge/internal/state"
 )
 
 type fakeNotifier struct {

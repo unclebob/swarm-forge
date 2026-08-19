@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/torratdev/swarmforge/internal/config"
+	"github.com/TorratDev/swarm-forge/internal/config"
 )
 
 const constitutionPointer = "# SwarmForge Constitution\n\n" +

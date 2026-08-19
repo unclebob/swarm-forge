@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/torratdev/swarmforge/internal/handoff"
-	"github.com/torratdev/swarmforge/internal/state"
+	"github.com/TorratDev/swarm-forge/internal/handoff"
+	"github.com/TorratDev/swarm-forge/internal/state"
 )
 
 // Notifier wakes a recipient role up to check its inbox. The full TUI

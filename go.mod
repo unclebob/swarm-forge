@@ -1,4 +1,4 @@
-module github.com/torratdev/swarmforge
+module github.com/TorratDev/swarm-forge
 
 go 1.24.0
 

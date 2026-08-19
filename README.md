@@ -1,187 +1,126 @@
-<p align="center" style="color: red; font-weight: bold; font-size: 2em; font-style: italic; text-decoration: underline;">
-Do not spend any money on a bankrbot SWARM token.
-</p>
-
 # SwarmForge
 
-**A disciplined tmux-based agent orchestration platform that turns swarms of AI agents into reliable, professional software engineers.**
+**A single-binary agent orchestration platform that turns swarms of AI agents into reliable, professional software engineers.**
 
-## Intent
+SwarmForge coordinates several AI coding-agent CLIs (`claude`, `codex`, `copilot`, `grok`) working in parallel on the same project: each configured role gets its own git worktree and its own pane in a built-in terminal UI, and roles hand off work to each other through a durable, file-based message queue.
 
-This `main` branch is documentary: it explains the system and carries the shared operational scripts and default constitution articles. The runnable workflow branches carry the project-facing configurations, role prompts, and local constitution articles that define specific workflows.
-
-SwarmForge is an agent coordination system that facilitates communication between agents working in different git worktrees.
-
-It provides a shared structure for role-specific prompts, worktree assignment, tmux sessions, and message passing so multiple agents can collaborate on the same project without stepping on each other.
-
-## Branches
-
-The runnable SwarmForge configurations live on dedicated branches. Each branch contains the `swarmforge/swarmforge.conf`, local constitution articles, and role prompts for one workflow. At startup, its `./swarm` wrapper copies the shared operational scripts and shared constitution articles from `main` when they are not already present, then launches that branch's local configuration.
-
-### `two-pack`
-
-`two-pack` is the quick backend workflow. Use it for small tasks that benefit from fast coding without the overhead of Gherkin and acceptance testing, while still preserving backend refactoring and hardening.
-
-- `coder` implements requested behavior with TDD and unit tests.
-- `cleaner` batches coder handoffs and performs cleanup, CRAP and DRY review, architectural review, encapsulation and separation-of-concerns fixes, and language mutation hardening.
-
-The normal flow is `coder` -> `cleaner` -> `coder`. Use this branch when you want a tight implementation/refinement loop without specification, QA, property-test, or acceptance-test roles.
-
-### `four-pack`
-
-`four-pack` is the compact specification workflow. Use it for moderate projects that require Gherkin specification and some architectural consideration without splitting every quality gate into its own agent:
-
-- `specifier` turns user intent into precise Gherkin acceptance specifications and asks for approval before handoff.
-- `coder` implements approved behavior slices with TDD, unit tests, and generated acceptance tests.
-- `refactorer` performs behavior-preserving cleanup, coverage improvement, CRAP and DRY review, mutation-site scans, and property-test support.
-- `architect` owns high-level structure, dependency direction, mutation hardening, DRY review, soft Gherkin mutation, and final completion notification.
-
-The normal flow is `specifier` -> `coder` -> `refactorer` -> `architect` -> `specifier`. Use this branch when you want disciplined development without splitting cleanup, architecture, hardening, and QA into separate agents.
-
-### `six-pack`
-
-`six-pack` is the full workflow. Use it for major projects that require full specification, up-front QA, backend verification, and significant architectural consideration. It separates each major quality gate into its own role:
-
-- `specifier` turns user intent into accepted Gherkin specifications and end-to-end QA procedures.
-- `coder` implements approved behavior slices with TDD, unit tests, and generated acceptance tests.
-- `cleaner` performs local behavior-preserving cleanup, coverage improvement, CRAP and DRY review, and mutation-site scans.
-- `architect` reviews module structure, boundaries, dependency direction, and property-test coverage.
-- `hardender` performs mutation hardening, language mutation, CRAP and DRY verification, and soft Gherkin mutation.
-- `QA` converts the specifier's QA procedures into executable scripts, runs final user-interface verification, checks handoff consistency, and sends completion notifications.
-
-The normal flow is `specifier` -> `coder` -> `cleaner` -> `architect` -> `hardender` -> `QA` -> completion. Use this branch when you want each review and verification concern owned by a separate agent.
+This is a from-scratch Go rewrite of the original Babashka/shell implementation. There is no more tmux, no OS-specific terminal-emulator adapters, and no `./swarm` curl+tar bootstrap — one `swarmforge` binary does everything, and it draws its own multi-pane view directly in your terminal.
 
 ## Prerequisites
 
-SwarmForge runs locally. Before starting a runnable branch, make sure the target machine has:
-
-- `zsh`
 - `git`
-- `tmux`
-- Babashka (`bb`)
-- At least one configured agent backend, such as `codex`, `claude`, `copilot`, or `grok`
+- Go 1.24+ (only to build; the built binary has no further runtime dependency beyond the agent CLIs below)
+- At least one configured agent backend: `claude`, `codex`, `copilot`, or `grok`
+
+## Install
+
+```sh
+go install github.com/TorratDev/swarm-forge/cmd/swarmforge@latest
+```
+
+or build from a checkout:
+
+```sh
+go build -o swarmforge ./cmd/swarmforge
+```
 
 ## Getting Started
 
-In the directory where you want to use SwarmForge, choose a runnable branch and pull its contents without creating a Git remote:
+Scaffold a new project from one of the built-in packs (see [Packs](#packs) below):
 
 ```sh
-BRANCH=four-pack
-curl -L "https://github.com/unclebob/swarm-forge/archive/refs/heads/${BRANCH}.tar.gz" | tar -xz --strip-components=1
+swarmforge init --pack two-pack path/to/project
+cd path/to/project
+swarmforge up
 ```
 
-Use `BRANCH=two-pack` for the quick two-agent workflow, `BRANCH=four-pack` for the compact specification workflow, or `BRANCH=six-pack` for the full six-agent workflow. Do not use `main` for this command; `main` is documentary and stores the shared operational scripts, while the runnable branches provide the configurations and prompts intended for projects.
+`init` writes `swarmforge.yaml` plus `swarmforge/roles/*.prompt` and `swarmforge/constitution/` into the target directory — plain files you can edit afterward, generated once and never overwritten. `up` then validates that config, creates a git worktree per role, pre-accepts Claude Code's workspace-trust dialog for `claude` roles, launches every role's agent CLI under its own pseudo-terminal, and takes over your terminal with the swarm view.
 
-After copying a runnable branch, start the swarm from the target project:
+To stop a swarm from another terminal:
 
 ```sh
-./swarm
+swarmforge down path/to/project   # defaults to the current directory
 ```
 
-The `./swarm` wrapper keeps the runnable branch small. On first use, if `swarmforge/scripts/` is missing, it downloads the `main` branch archive, copies the shared operational scripts from `swarmforge/scripts/`, stages shared constitution articles from `swarmforge/constitution/articles/`, and then launches `swarmforge/scripts/swarmforge.sh`. Later runs reuse the existing local scripts directory instead of overwriting it.
+### TUI controls
 
-The windows should open automatically.
+There's no tmux prefix key anymore, but the idea carries over: **Ctrl-A** is the leader key. Press it, then:
 
-To stop the swarm, either run `./close-swarm` from the project root or close the first window listed in `swarmforge/swarmforge.conf`. Both paths run the same cleanup: they shut down the tmux sessions and close the remaining tracked windows. `./close-swarm [project-root]` defaults to the current directory and errors out clearly if it finds no running swarm (`.swarmforge/` or its tmux socket missing) there.
+- a digit (`1`-`9`) switches the focused pane to that role
+- `q` quits and tears down the whole swarm
 
-While a swarm is active, SwarmForge tries to prevent the host from sleeping. On macOS it uses `caffeinate`; on Linux it uses `systemd-inhibit` when available. Display lock or manual sleep can still interrupt agents depending on the OS. Set `SWARMFORGE_PREVENT_SLEEP=0` before `./swarm` to disable this behavior.
+Every other keystroke — including Ctrl-C — passes straight through to the focused pane's agent process, exactly as if you'd typed it directly into that CLI.
 
-## What SwarmForge Does
+Closing the pane belonging to the **first role listed** in `swarmforge.yaml` (the "cleanup role") tears down the entire swarm, matching the rest of the roles' teardown behavior.
 
-SwarmForge is a lightweight, tmux-based orchestration layer that:
+## Packs
 
-- Launches a **config-driven swarm** from a project-local `swarmforge/swarmforge.conf`
-- Creates one tmux session per configured role and opens a terminal surface for each role when the selected backend supports it
-- Reads behavior from project-local `swarmforge/roles/<role>.prompt` files plus a layered `swarmforge/constitution.prompt`
-- Supports per-role backends such as `claude`, `codex`, `copilot`, or `grok`
-- Puts the shared `swarmforge/scripts/` directory on each agent's `PATH`, including handoff helpers for active swarm communication
-- Creates git worktrees under `.worktrees/` for roles assigned to dedicated worktree names
-- Pre-accepts Claude Code's workspace-trust dialog for the working directory and every `claude` role's worktree, so those agents don't block on an unattended trust prompt at first launch
-- Initializes a git repository in a new working directory when needed
-- Keeps all swarm state local to the working directory in `.swarmforge/`
+A pack is a declarative role topology, embedded in the `swarmforge` binary and materialized by `init`. Three ship today:
 
-## Core Features
+| Pack | Roles | Flow |
+|---|---|---|
+| `two-pack` | `coder`, `cleaner` | `coder` → `cleaner` → `coder` — a quick implement/refine loop, no specification or QA overhead |
+| `four-pack` | `specifier`, `coder`, `refactorer`, `architect` | `specifier` → `coder` → `refactorer` → `architect` → `specifier` — Gherkin specification plus one architecture/hardening pass |
+| `six-pack` | `specifier`, `coder`, `cleaner`, `architect`, `hardender`, `QA` | `specifier` → `coder` → `cleaner` → `architect` → `hardender` → `QA` → completion — every quality gate as its own role |
 
-- **Config-Driven Topology** — The swarm shape comes from `swarmforge/swarmforge.conf`, not hardcoded shell variables.
-- **Project-Local Roles** — Each role is defined by `swarmforge/roles/<role>.prompt` in the working tree being orchestrated.
-- **Layered Constitution** — `swarmforge/constitution.prompt` directs agents to read article files under `swarmforge/constitution/articles/`.
-- **Backend Selection Per Role** — A role can launch `claude`, `codex`, `copilot`, or `grok`.
-- **Observable Swarm** — Open one Terminal window per role and watch the sessions in real time.
-- **Self-Hosted & Lightweight** — Runs locally in tmux and Terminal with minimal machinery.
+List and lint the embedded packs:
 
-## Constitution Structure
-
-Each runnable branch contains a `swarmforge/` directory with this general layout:
-
-```text
-swarmforge/
-  swarmforge.conf
-  constitution.prompt
-  constitution/
-    articles/
-      project.prompt
-      local-engineering.prompt
-      local-workflow.prompt
-      ...
-  roles/
-    <role>.prompt
-    ...
+```sh
+swarmforge pack list
+swarmforge pack lint          # lints every pack
+swarmforge pack lint six-pack # lints just one
 ```
 
-`constitution.prompt` is the entry point. Runnable branches normally use it to tell agents to read every file in `swarmforge/constitution/articles/`.
+## The `swarmforge.yaml` File
 
-Shared default articles live on `main` under:
+`init` generates this from a pack; `up` reads whatever is on disk, so hand edits stick. It's the data-driven replacement for the old `window <role> <agent> <worktree> [mode] [args]` config-file DSL:
 
-```text
-swarmforge/constitution/articles/
-  engineering.prompt
-  handoffs.prompt
-  workflow.prompt
+```yaml
+name: two-pack
+roles:
+  - name: coder
+    agent: claude
+    worktree: master
+    receive_mode: task
+    extra_args: ["--model", "haiku"]
+  - name: cleaner
+    agent: claude
+    worktree: cleaner
+    receive_mode: batch
+    extra_args: ["--model", "sonnet"]
 ```
 
-At startup, SwarmForge installs missing shared articles into the runnable branch's `swarmforge/constitution/articles/` directory before creating role worktrees. It also installs missing shared articles into each role worktree during script synchronization. Existing local files are skipped, so a runnable branch can override a shared article by committing an article with the same filename.
+- `name` maps to `swarmforge/roles/<name>.prompt`; must be unique and must not contain `_`.
+- `agent` is one of `claude`, `codex`, `copilot`, `grok`.
+- `worktree` is `master` (or `none`) to run in the main working directory, or any other unique name to get `.worktrees/<name>` on branch `swarmforge-<name>`.
+- `receive_mode` is `task` (default) or `batch`. `batch` roles consume every currently queued equal-priority handoff as one batch instead of one task at a time.
+- `extra_args` are passed straight through to the agent CLI's argv.
+- The **first role in the list** is the cleanup role (see [TUI controls](#tui-controls)).
 
-Pack-specific additions and exceptions should use explicit local filenames rather than editing shared articles. Current conventions are:
+### Permission mode for `claude` and `grok` roles
 
-- `project.prompt` for the workflow's project shape and local topology.
-- `local-engineering.prompt` for workflow-specific engineering rules.
-- `local-workflow.prompt` for workflow-specific flow rules.
+SwarmForge auto-injects a permission-mode flag so an unattended agent doesn't stall waiting for approval. By default it injects `--permission-mode acceptEdits` (auto-approves file edits, still stops on Bash/tool calls). To let a role auto-approve everything, add `--yolo`, `--always-approve`, or `--permission-mode bypassPermissions` to that role's `extra_args`:
 
-The `local-*.prompt` naming convention means "add to or specialize the shared default article for this runnable branch." Use it when the shared article remains valid and the branch only needs extra requirements, exceptions, or narrower instructions. Do not use `local-*.prompt` for a full replacement; use the shared filename instead when the branch intentionally overrides the shared article.
+```yaml
+  - name: coder
+    agent: claude
+    worktree: coder
+    extra_args: ["--yolo"]
+```
 
-For example, `main` can provide a shared `workflow.prompt`, while `six-pack` can add `local-workflow.prompt` for QA-specific handoff behavior. If a branch needs to replace the shared workflow article completely, it can commit its own `workflow.prompt`; startup will treat that local file as an override and will not copy the shared one over it.
-
-## Roles
-
-Each role in `swarmforge/swarmforge.conf` maps to a corresponding `swarmforge/roles/<role>.prompt` file.
-
-## How It Works
-
-In a runnable branch:
-
-1. SwarmForge reads `swarmforge/swarmforge.conf`.
-2. The root `./swarm` wrapper copies shared helper scripts, terminal adapters, and shared constitution articles from the `main` branch when they are not already present.
-3. Startup installs missing shared constitution articles into `swarmforge/constitution/articles/`, skipping any local article file that already exists.
-4. Startup validates the configured role prompts, helper scripts, and terminal adapters.
-5. If the target directory is not already a git repository, startup initializes one and creates the first commit.
-6. Startup creates one git worktree per configured role under `.worktrees/`, unless the role is assigned to `master` or `none`.
-7. Startup pre-accepts the Claude Code workspace-trust dialog for the working directory and every `claude` role's worktree, so those agents don't block on it at first launch.
-8. Startup syncs `swarmforge/scripts/` and missing shared constitution articles into each role worktree and puts that local scripts directory on each agent's `PATH`, so agents use local handoff helpers without reaching back into the master checkout.
-9. SwarmForge creates tmux sessions, opens terminal windows, and launches each configured backend in its assigned worktree.
-10. Startup starts an OS-specific sleep inhibitor when one is available, and cleanup stops it with the swarm.
-11. Roles communicate through daemon-delivered handoff files. Agents create validated drafts with `swarm_handoff.sh`, accept work with `ready_for_next.sh`, and complete work with `done_with_current.sh`.
+`bypassPermissions` is opt-in per role — never the default.
 
 ## Handoff Protocol
 
-Startup syncs the shared helper scripts into every role worktree under `swarmforge/scripts/` and puts that local directory on the agent's `PATH`. Agents do not send tmux messages directly. The launcher starts `handoffd.bb`, which owns tmux socket access, watches each agent outbox, copies validated handoff files into recipient inboxes, and sends only generic wake-up notifications.
+Agents don't message each other directly. Each role's worktree gets a `.swarmforge/handoffs/` directory (`outbox`, `sent`, `failed`, `inbox/{new,in_process,completed}`), and while a swarm is running, a delivery goroutine inside `swarmforge up` polls every role's outbox, copies validated handoffs into each recipient's inbox, and wakes the recipient by writing directly into its pane.
 
-Agents interact with handoffs through three helper scripts:
+Agents interact with this queue through three commands (also installed on `PATH` under their original script names — `swarm_handoff.sh`, `ready_for_next.sh`, `done_with_current.sh` — so existing role prompts work unmodified):
 
-- `swarm_handoff.sh <draft-file>` validates and queues outbound handoffs.
-- `ready_for_next.sh` accepts work using the role's configured receive mode.
-- `done_with_current.sh` completes the current task or batch using the role's configured receive mode.
+- `swarm_handoff.sh <draft-file>` validates a draft and queues it into the sender's outbox.
+- `ready_for_next.sh` accepts the next task or batch, per the role's configured receive mode.
+- `done_with_current.sh` completes the current task or batch, then immediately reports the next one.
 
-Outbound drafts use one of two message types. A git handoff points the recipient at a committed state. The commit abbreviation must be exactly 10 hexadecimal characters; `swarm_handoff.sh` validates that it resolves to a single commit and canonicalizes it before queuing the handoff.
+A draft is headers only; the command generates the delivered payload. Two message types:
 
 ```text
 type: git_handoff
@@ -191,8 +130,6 @@ task: <short-stable-task-name>
 commit: <10-character-commit-abbrev>
 ```
 
-A note is one short freeform message:
-
 ```text
 type: note
 to: <role>[,<role>...]
@@ -200,156 +137,52 @@ priority: NN
 message: <one line, max 80 chars>
 ```
 
-The helper generates the delivered payload. Agents do not write long handoff bodies, branch names, queue filenames, or tmux commands.
+`commit` must resolve to exactly one real commit object; `swarm_handoff.sh` canonicalizes it before queuing. `priority` is two digits, lower delivered first; handoff filenames (`<priority>_<timestamp>_<sequence>_from_<sender>_to_<recipients>.handoff`) are constructed to sort lexicographically in exactly that delivery order.
 
-Recipient agents run `ready_for_next.sh` when notified or after restart. It dispatches to the task or batch helper configured for that role. If it prints `NO_TASK`, they stop waiting for work. If it prints `TASK: <path>`, they treat the printed `TASK_NAME` and `PAYLOAD` as the task. If it prints `BATCH: <path>`, they process the printed `BATCH_ITEM` entries in helper-delivered order. If a wake-up arrives while an agent is already working, it can ignore the wake-up; `done_with_current.sh` checks for the next task or batch after completing the current work.
+Recipients run `ready_for_next.sh` when notified or on restart. `NO_TASK` means stop waiting; `TASK: <path>` means treat the printed `PAYLOAD` as the task; `BATCH: <path>` means process each printed `BATCH_ITEM` in order. `done_with_current.sh` after finishing immediately reports the next task/batch the same way. Agents should never hand-edit, merge, stage, or commit anything under `.swarmforge/`.
 
-The durable handoff files and lifecycle headers replace the old logbook and resend queue. Runtime handoff state lives under `.swarmforge/handoffs/` in each worktree, with `outbox`, `sent`, `failed`, and `inbox` subdirectories. Agents should not hand-edit, merge, stage, or commit handoff runtime state. See [swarmforge/handoff-protocol.md](swarmforge/handoff-protocol.md) for the full protocol.
-
-## The `swarmforge.conf` File
-
-`swarmforge/swarmforge.conf` defines the swarm window-by-window. Each line has this form:
-
-```conf
-window <role> <agent> <worktree> [task|batch] [extra-cli-args...]
-```
-
-The optional receive mode defaults to `task`. Use `batch` for roles that should consume all currently queued equal-priority handoffs as one batch.
-
-Any fields after the receive mode are passed directly to the agent CLI as additional arguments. If you omit the receive mode, extra arguments may start at the fifth field:
-
-```conf
-window coder copilot wt-coder --yolo
-window architect claude wt-arch task --dangerously-skip-permissions
-```
-
-You can define as many windows as your project needs. Each `role` maps to a corresponding prompt file at `swarmforge/roles/<role>.prompt`, so a config containing `architect`, `coder`, `reviewer`, `research`, and `release` windows would expect:
-
-- `swarmforge/roles/architect.prompt`
-- `swarmforge/roles/coder.prompt`
-- `swarmforge/roles/reviewer.prompt`
-- `swarmforge/roles/research.prompt`
-- `swarmforge/roles/release.prompt`
-
-This lets each project choose its own swarm shape instead of being locked to a fixed set of roles.
-
-Example config:
-
-```conf
-window coordinator codex master
-window coder codex coder
-window refactorer codex refactorer
-window architect codex architect
-```
-
-In the example above, the agents run in these worktrees:
-
-- `coordinator` -> main working directory on `master`, and is the cleanup window because it is listed first
-- `coder` -> `.worktrees/coder`
-- `refactorer` -> `.worktrees/refactorer`
-- `architect` -> `.worktrees/architect`
-
-If a window uses `master` as its worktree name, SwarmForge does not create `.worktrees/master`; that role runs in the main working directory on the `master` branch.
-
-### Permission Mode for `claude` and `grok` Roles
-
-For roles running `claude` or `grok`, SwarmForge auto-injects a permission-mode flag so the agent doesn't stall in a tmux pane waiting for an unattended human to approve a tool call. By default it injects `--permission-mode acceptEdits`, which auto-approves file edits but still stops on Bash/tool calls.
-
-To let a role auto-approve everything, add `--yolo`, `--always-approve`, or `--permission-mode bypassPermissions` to that role's extra CLI args in `swarmforge.conf`. `bypassPermissions` is opt-in per role; it is never the default.
-
-```conf
-window coder claude wt-coder task --yolo
-```
-
-## tmux Behavior
-
-SwarmForge uses a project-specific tmux socket recorded in `.swarmforge/tmux-socket`, so each project swarm is isolated from other tmux sessions. It also honors tmux `base-index` and `pane-base-index` settings when launching agents and sending notifications, so configurations that number windows or panes from `1` work without requiring users to change their tmux preferences.
-
-## Terminal Behavior
-
-SwarmForge opens trackable terminal windows or tabs through a small terminal backend adapter.
-
-Default detection:
-
-- If AppleScript is available, SwarmForge opens macOS Terminal.app windows.
-- Otherwise, if `wt.exe` is available, SwarmForge opens Windows Terminal windows.
-- Otherwise, on Linux with a display (`$DISPLAY` or `$WAYLAND_DISPLAY`) and a known terminal emulator on `$PATH`, SwarmForge opens a Linux terminal window.
-- Otherwise, SwarmForge attaches the cleanup tmux session in the current shell.
-
-After copying a runnable branch, set `SWARMFORGE_TERMINAL` to override detection:
-
-```sh
-SWARMFORGE_TERMINAL=ghostty ./swarm
-SWARMFORGE_TERMINAL=terminal-app ./swarm
-SWARMFORGE_TERMINAL=windows-terminal ./swarm
-SWARMFORGE_TERMINAL=linux-terminal ./swarm
-SWARMFORGE_TERMINAL=none ./swarm
-```
-
-Use `ghostty` when you want SwarmForge to open Ghostty tabs instead of the default Terminal.app windows. Use `windows-terminal` when you want SwarmForge to open Windows Terminal windows from WSL. Use `linux-terminal` to force the Linux desktop adapter. Use `none` when you want SwarmForge to skip terminal automation and attach the cleanup tmux session in the current shell.
-
-On Linux, SwarmForge scans `gnome-terminal`, `konsole`, `xfce4-terminal`, `tilix`, `alacritty`, `kitty`, `foot`, `xterm`, and `x-terminal-emulator`, in that order, and opens the first one found. Set `SWARMFORGE_LINUX_TERMINAL=<emulator>` to force a specific one instead.
-
-By default every role's tmux window is linked into the first role's session, so a single terminal window shows every agent (switch with `prefix+w` or `prefix+<number>`). Set `SWARMFORGE_SEPARATE_WINDOWS=1` to open one terminal surface per role instead.
-
-### Adding A Terminal Backend
-
-The shared terminal backends are carried on `main` under `swarmforge/scripts/terminal-adapters/`. Runnable branches copy those scripts at startup. To add a new backend, update `main` by creating one file named after the backend:
+## Constitution Structure
 
 ```text
-swarmforge/scripts/terminal-adapters/wezterm.sh
+swarmforge/
+  roles/
+    <role>.prompt
+  constitution.prompt
+  constitution/
+    articles/
+      engineering.prompt   # shared base article
+      handoffs.prompt      # shared base article
+      workflow.prompt      # shared base article
+      project.prompt       # pack-specific overlay
+      ...
 ```
 
-The file must define this small contract:
+`constitution.prompt` tells every agent to read every file under `constitution/articles/`. `engineering.prompt`, `handoffs.prompt`, and `workflow.prompt` are shared base articles every pack includes by default (`swarmforge pack lint` fails a pack that drops `handoffs` without an explicit replacement). Packs add their own overlay files — `project.prompt` describes the pack's role topology; `six-pack` additionally ships `local-engineering.prompt` and `local-workflow.prompt` as small additive specializations that sit alongside the base articles rather than replacing them.
+
+## Development
 
 ```sh
-terminal_backend_label() {
-  echo "WezTerm"
-}
-
-terminal_backend_can_open_sessions() {
-  return 0
-}
-
-terminal_backend_tracks_windows() {
-  return 0
-}
-
-terminal_open_session() {
-  local session="$1"
-  local title="$2"
-  local sibling_id="${3:-}"
-
-  # Open a terminal surface that runs:
-  # cd "$WORKING_DIR" && exec tmux -S "$TMUX_SOCKET" attach-session -t "$session"
-  #
-  # Print a stable window/tab id to stdout.
-}
-
-terminal_window_exists() {
-  local window_id="$1"
-
-  # Return 0 if the id from terminal_open_session still exists.
-  # Return nonzero otherwise.
-}
-
-terminal_close_window() {
-  local window_id="$1"
-
-  # Close the id from terminal_open_session.
-}
+go build ./...
+go test ./...
+go test -race ./...
 ```
 
-If the terminal can open sessions but cannot return stable ids for open/check/close, keep `terminal_backend_can_open_sessions` as `return 0` and set `terminal_backend_tracks_windows` to `return 1`. SwarmForge will open one surface per session and skip the watchdog for that backend. `swarmforge/scripts/terminal-adapters/windows-terminal.sh` is an example of this launch-only style.
+Package layout:
 
-If the backend cannot open sessions at all, set both capability functions to `return 1`; SwarmForge will attach the cleanup tmux session in the current shell. Only edit `swarmforge/scripts/swarm-terminal-adapter.sh` when adding aliases or changing default auto-detection.
-
-## Window Behavior
-
-Each visible agent window is attached to a tmux session. That means terminal selection, copy, and paste may follow tmux and terminal-emulator rules rather than ordinary text-field behavior. If copy or paste feels unusual, check whether tmux copy mode is active before assuming the agent is stuck.
-
-The first window in `swarmforge.conf` is the cleanup window. Closing that top configured window, or running `./close-swarm`, is the intentional shutdown path: SwarmForge tears down the tmux sessions, closes the remaining tracked windows, and shuts down the swarm.
-
-Closing any other tracked window is non-destructive. The watchdog reopens that window and attaches it back to the same tmux session, so the agent state and terminal history remain intact. This is often the simplest way to recover a window that has landed in an unfamiliar tmux mode or otherwise feels stuck.
-
-The `linux-terminal` backend does not track windows — there is no cross-emulator way to query or close a specific window on Linux — so the watchdog is inactive there. Closing a Linux terminal window does not reopen it automatically; reattach manually with `tmux -S <socket> attach-session -t <session>` or restart the swarm.
+```text
+cmd/swarmforge/       entry point; argv0 dispatch for the legacy script names
+internal/
+  cli/                command handlers (init, up, down, handoff, ready, done, pack)
+  config/              swarmforge.yaml schema + validation
+  state/               .swarmforge/state.json + project-root discovery
+  handoff/             header parse/serialize, filenames, draft validation, queue state machine
+  daemon/               outbox -> inbox delivery poll loop
+  gitutil/               git plumbing: worktrees, commit canonicalization
+  trust/                 ~/.claude.json trust-dialog patcher
+  launch/                 per-backend argv builders
+  orchestrator/           startup sequencing, live swarm (launch/daemon/teardown)
+  ptyagent/               PTY-backed subprocess spawn/resize/teardown
+  termemu/                vt10x-backed virtual screen per agent
+  tui/                    the multi-pane bubbletea app
+  pack/                   pack schema, embedded pack definitions, generator
+```

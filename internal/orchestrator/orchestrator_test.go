@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/torratdev/swarmforge/internal/pack"
-	"github.com/torratdev/swarmforge/internal/state"
+	"github.com/TorratDev/swarm-forge/internal/pack"
+	"github.com/TorratDev/swarm-forge/internal/state"
 )
 
 func scaffoldTwoPack(t *testing.T) string {

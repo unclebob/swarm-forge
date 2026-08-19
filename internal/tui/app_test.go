@@ -9,9 +9,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/torratdev/swarmforge/internal/launch"
-	"github.com/torratdev/swarmforge/internal/orchestrator"
-	"github.com/torratdev/swarmforge/internal/pack"
+	"github.com/TorratDev/swarm-forge/internal/launch"
+	"github.com/TorratDev/swarm-forge/internal/orchestrator"
+	"github.com/TorratDev/swarm-forge/internal/pack"
 )
 
 func requirePython(t *testing.T) {
