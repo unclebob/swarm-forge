@@ -2,16 +2,28 @@ package cli
 
 import (
 	"fmt"
-	"strings"
+	"os"
+	"os/signal"
+	"syscall"
+
+	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/torratdev/swarmforge/internal/orchestrator"
+	"github.com/torratdev/swarmforge/internal/tui"
 )
 
-// RunUp prepares a swarm: validates swarmforge.yaml, creates git
-// worktrees, patches Claude Code's trust dialog, and writes
-// .swarmforge/state.json. It does not launch any agent processes yet --
-// that requires the PTY/TUI layer, which is not implemented as of this
-// phase of the rewrite.
+// RunUp prepares a swarm (validates swarmforge.yaml, creates git
+// worktrees, patches Claude Code's trust dialog, writes state.json),
+// launches every configured role's agent process under its own PTY, and
+// takes over the terminal with the multi-pane TUI until the operator
+// quits (leader+q) or the cleanup role's process exits.
+//
+// This function fundamentally needs a real terminal (bubbletea reads/
+// writes os.Stdin/os.Stdout directly for the interactive session), so
+// unlike the other command handlers it isn't practical to drive through
+// Env's io.Writer abstraction end-to-end -- Prepare/Launch (the part that
+// can go wrong non-interactively) are covered by internal/orchestrator's
+// own tests instead.
 func RunUp(env Env) int {
 	result, err := orchestrator.Prepare(env.Cwd)
 	if err != nil {
@@ -19,23 +31,39 @@ func RunUp(env Env) int {
 		return 1
 	}
 
-	fmt.Fprintf(env.Stdout, "Prepared %d role(s):\n", len(result.State.Roles))
-	for _, r := range result.State.Roles {
-		fmt.Fprintf(env.Stdout, "  - %s (%s, %s, %s)\n", r.Name, r.Agent, r.ReceiveMode, r.WorktreePath)
+	run, err := orchestrator.Launch(env.Cwd, result.Project, result.State, orchestrator.StartDelay, nil)
+	if err != nil {
+		fmt.Fprintln(env.Stderr, "swarmforge up:", err)
+		return 1
 	}
-	if len(result.CreatedWorktrees) > 0 {
-		fmt.Fprintln(env.Stdout, "Worktrees created:", strings.Join(result.CreatedWorktrees, ", "))
-	}
-	if result.TrustedDirs > 0 {
-		fmt.Fprintf(env.Stdout, "Pre-accepted the Claude Code trust dialog for %d director%s.\n", result.TrustedDirs, plural(result.TrustedDirs))
-	}
-	fmt.Fprintln(env.Stdout, "Agent launch is not implemented yet in this build; the swarm has been prepared but no agents were started.")
-	return 0
-}
 
-func plural(n int) string {
-	if n == 1 {
-		return "y"
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+	programDone := make(chan struct{})
+	go func() {
+		select {
+		case <-sigCh:
+			run.Shutdown()
+		case <-programDone:
+		}
+	}()
+
+	roles := make([]string, len(result.Project.Roles))
+	for i, r := range result.Project.Roles {
+		roles[i] = r.Name
 	}
-	return "ies"
+
+	program := tea.NewProgram(tui.New(run, roles), tea.WithAltScreen())
+	_, runErr := program.Run()
+	close(programDone)
+
+	// Idempotent via sync.Once: a no-op if the TUI (leader+q, or the
+	// cleanup role exiting) or the signal handler above already ran it.
+	run.Shutdown()
+
+	if runErr != nil {
+		fmt.Fprintln(env.Stderr, "swarmforge up:", runErr)
+		return 1
+	}
+	return 0
 }

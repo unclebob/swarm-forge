@@ -26,6 +26,15 @@ import (
 type Agent struct {
 	Cmd *exec.Cmd
 	PTY *os.File
+
+	// done is closed exactly once, by the single goroutine Start spawns
+	// to own the (*exec.Cmd).Wait() call. os/exec explicitly forbids
+	// calling Wait more than once or from more than one goroutine, so
+	// every other consumer (Wait, Close, an orchestrator watching for
+	// exit) observes completion through this channel instead of calling
+	// Cmd.Wait() themselves.
+	done    chan struct{}
+	waitErr error
 }
 
 // Start launches name with args in dir (with the given environment, or
@@ -42,7 +51,13 @@ func Start(name string, args []string, dir string, env []string, cols, rows int)
 	if err != nil {
 		return nil, err
 	}
-	return &Agent{Cmd: cmd, PTY: ptmx}, nil
+
+	a := &Agent{Cmd: cmd, PTY: ptmx, done: make(chan struct{})}
+	go func() {
+		a.waitErr = cmd.Wait()
+		close(a.done)
+	}()
+	return a, nil
 }
 
 // Resize propagates a terminal size change to the PTY (and, via SIGWINCH,
@@ -56,9 +71,12 @@ func (a *Agent) Write(p []byte) (int, error) {
 	return a.PTY.Write(p)
 }
 
-// Wait blocks until the child process exits.
+// Wait blocks until the child process exits and returns its exit error
+// (nil on a clean exit). Safe to call from any number of goroutines, any
+// number of times.
 func (a *Agent) Wait() error {
-	return a.Cmd.Wait()
+	<-a.done
+	return a.waitErr
 }
 
 // Close terminates the agent's entire process group (SIGTERM, escalating
@@ -71,16 +89,11 @@ func (a *Agent) Close(timeout time.Duration) error {
 		pgid := a.Cmd.Process.Pid
 		_ = syscall.Kill(-pgid, syscall.SIGTERM)
 
-		done := make(chan struct{})
-		go func() {
-			_ = a.Cmd.Wait()
-			close(done)
-		}()
 		select {
-		case <-done:
+		case <-a.done:
 		case <-time.After(timeout):
 			_ = syscall.Kill(-pgid, syscall.SIGKILL)
-			<-done
+			<-a.done
 		}
 	}
 	return a.PTY.Close()

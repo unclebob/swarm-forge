@@ -127,7 +127,7 @@ func TestPTYAgentAltScreenUnicodeColorAndInputPassthrough(t *testing.T) {
 	waitFor(t, screen, "back to primary screen", 2*time.Second)
 
 	waitErr := make(chan error, 1)
-	go func() { waitErr <- agent.Cmd.Wait() }()
+	go func() { waitErr <- agent.Wait() }()
 	select {
 	case err := <-waitErr:
 		if err != nil {
