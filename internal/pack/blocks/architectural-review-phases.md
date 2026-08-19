@@ -1,0 +1,4 @@
+- UI/Core Separation: review whether UI, framework, IO, and delivery details are separated from core rules and whether core behavior can be tested without UI or IO.
+- Dependency Rule: review dependency direction. High-level modules far from IO must not depend on low-level modules near IO; low-level modules should depend on high-level modules through stable abstractions or calls inward.
+- Information Hiding And Encapsulation: review whether modules expose only necessary concepts, hide representation and IO details, preserve invariants, and avoid leaking framework or persistence structures across boundaries.
+- Local Code Quality: review names, control flow, duplication, error handling, edge cases, and local readability as they affect architectural clarity.

@@ -146,12 +146,12 @@ func Generate(def Definition, packName, destDir string) error {
 			return err
 		}
 	}
-	if def.Constitution.Project != "" {
-		content, err := packLocalFile(packName, def.Constitution.Project)
+	for _, rel := range def.Constitution.Extra {
+		content, err := packLocalFile(packName, rel)
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(articlesDir, "project.prompt"), []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(articlesDir, filepath.Base(rel)), []byte(content), 0o644); err != nil {
 			return err
 		}
 	}

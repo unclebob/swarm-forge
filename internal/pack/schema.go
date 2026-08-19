@@ -23,9 +23,14 @@ type Constitution struct {
 	// explicitly (see Lint), fixing an oversight in the original
 	// four-pack/six-pack branches, which dropped it with no replacement.
 	Base []string `yaml:"base"`
-	// Project names the pack-local file (relative to the pack's own
-	// directory) rendered as swarmforge/constitution/articles/project.prompt.
-	Project string `yaml:"project"`
+	// Extra lists pack-local files (relative to the pack's own directory,
+	// e.g. "project.prompt", "local-workflow.prompt") copied verbatim
+	// into swarmforge/constitution/articles/ under their own basename, in
+	// addition to the base articles. This is the additive-overlay pattern
+	// the original six-pack branch used for its "local-*.prompt" files:
+	// specialize a shared article by adding a same-topic file alongside
+	// it, without touching the shared article's own content.
+	Extra []string `yaml:"extra"`
 }
 
 // DefaultBaseArticles is used when a pack's Constitution.Base is empty.

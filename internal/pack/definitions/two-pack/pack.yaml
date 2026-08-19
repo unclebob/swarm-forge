@@ -3,7 +3,7 @@ description: "Quick backend workflow: coder -> cleaner -> coder loop, no specifi
 
 constitution:
   base: [engineering, handoffs, workflow]
-  project: project.prompt
+  extra: [project.prompt]
 
 roles:
   - name: coder

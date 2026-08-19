@@ -43,7 +43,7 @@ func main() {
 		SilenceErrors: true,
 	}
 
-	root.AddCommand(handoffCmd(), readyCmd(), doneCmd(), initCmd(), upCmd(), downCmd())
+	root.AddCommand(handoffCmd(), readyCmd(), doneCmd(), initCmd(), upCmd(), downCmd(), packCmd())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "swarmforge:", err)
@@ -124,6 +124,33 @@ func downCmd() *cobra.Command {
 			return exitCode(cli.RunDown(env, dir))
 		},
 	}
+}
+
+func packCmd() *cobra.Command {
+	root := &cobra.Command{
+		Use:   "pack",
+		Short: "Inspect embedded packs",
+	}
+	root.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List embedded packs",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return exitCode(cli.RunPackList(realEnv()))
+		},
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "lint [pack-name]",
+		Short: "Check embedded packs for known trouble spots (all packs if no name given)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := ""
+			if len(args) == 1 {
+				name = args[0]
+			}
+			return exitCode(cli.RunPackLint(realEnv(), name))
+		},
+	})
+	return root
 }
 
 // exitCode turns a command handler's process exit code into the
