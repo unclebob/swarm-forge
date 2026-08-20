@@ -6,6 +6,8 @@
             [clojure.java.shell :refer [sh]]
             [clojure.string :as str]))
 
+(load-file "swarmforge/scripts/audit_lib.bb")
+
 (def poll-ms 1000)
 (def wake-message
   "You have new handoff mail. If idle, run ready_for_next.sh.")
@@ -117,6 +119,7 @@
 (defn fail! [path reason]
   (let [failed-dir (fs/path (fs/parent (fs/parent path)) "failed")]
     (log! "failed" (str path) reason)
+    ((resolve 'audit-lib/write-audit-event!) project-root {:event "failed" :path (str path) :reason reason})
     (spit (str path ".error") (str reason "\n"))
     (move-with-collision path failed-dir)))
 
@@ -137,7 +140,14 @@
               (fs/create-dirs (fs/parent target))
               (when-not (fs/exists? target)
                 (spit (str target) (render-message (:headers delivered) (:body delivered))))
-              (notify! socket (:session role-info)))))
+              (notify! socket (:session role-info))
+              ((resolve 'audit-lib/write-audit-event!) project-root 
+               {:event "delivered" 
+                :id (get headers "id") 
+                :from sender-role 
+                :to recipient 
+                :task (get headers "task") 
+                :type (get headers "type")}))))
         (move-with-collision path
                              (fs/path (get-in roles [sender-role :worktree-path])
                                       ".swarmforge" "handoffs" "sent"))
