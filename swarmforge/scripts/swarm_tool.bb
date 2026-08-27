@@ -156,7 +156,9 @@
 (defn write-wrapper! [path body]
   (fs/create-dirs (fs/parent path))
   (spit (str path) (str "#!/usr/bin/env bash\n" body))
-  (fs/set-posix-file-permissions path "rwxr-xr-x")
+  (try
+    (fs/set-posix-file-permissions path "rwxr-xr-x")
+    (catch UnsupportedOperationException _ nil))
   path)
 
 (defn write-bb-wrapper! [root tool bb-task src-dir]
