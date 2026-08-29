@@ -78,6 +78,16 @@ SwarmForge runs locally. Before starting a runnable branch, make sure the target
 - Babashka (`bb`)
 - At least one configured agent backend, such as `codex`, `claude`, `copilot`, or `grok`
 
+### Windows
+
+Native Windows (no WSL) is supported via [MSYS2](https://www.msys2.org/), which provides `zsh`, `tmux`, and `git`:
+
+```sh
+pacman -S zsh tmux git curl tar gawk
+```
+
+Install Babashka natively (e.g. via `winget install Babashka.Babashka` or `scoop install babashka`) and make sure the directories holding `bb`, your agent backend CLI, and `get-swarm-forge` are all on the MSYS2 shell's `PATH` (MSYS2's default `PATH` does not inherit the full Windows `PATH`; add the missing directories to `~/.zshrc`/`~/.bashrc`). Run everything — `get-swarm-forge` and `./swarm` — from an MSYS2 `zsh` shell, not from Git Bash or PowerShell.
+
 ## Getting Started
 
 Install the `get-swarm-forge` helper somewhere on your `PATH`, such as `~/cmds` or `~/bin`:

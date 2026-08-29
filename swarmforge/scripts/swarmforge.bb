@@ -307,7 +307,9 @@
           (str "#!/usr/bin/env zsh\n"
                "set -euo pipefail\n"
                "exec bb " (sq bb) " \"$@\"\n"))
-    (fs/set-posix-file-permissions hook "rwxr-xr-x")))
+    (try
+      (fs/set-posix-file-permissions hook "rwxr-xr-x")
+      (catch UnsupportedOperationException _ nil))))
 
 (defn prepare-workspace! [ctx]
   (doseq [dir [(:state-dir ctx) (:notify-dir ctx) (:prompts-dir ctx)
@@ -598,13 +600,14 @@
 (defn start-handoff-daemon! [ctx]
   (fs/delete-if-exists (fs/path (:daemon-dir ctx) "stop"))
   (let [command (into (vec (sleep-inhibitor-prefix))
-                      [(str (fs/path (:script-dir ctx) "handoffd.bb"))
+                      ["bb"
+                       (str (fs/path (:script-dir ctx) "handoffd.bb"))
                        (str (:working-dir ctx))])]
     (process/process command
                      {:out (str (:handoff-daemon-log ctx))
                       :err :out})
     (println (str green "Started handoff daemon"
-                  (when (> (count command) 2) " with OS sleep prevention")
+                  (when (> (count command) 3) " with OS sleep prevention")
                   "."
                   reset))))
 
@@ -653,7 +656,7 @@
       window-id)))
 
 (defn start-window-watchdog! [ctx]
-  (process/process [(str (fs/path (:script-dir ctx) "swarm-window-watchdog.sh"))
+  (process/process ["zsh" (str (fs/path (:script-dir ctx) "swarm-window-watchdog.sh"))
                     (str (:window-state-file ctx))
                     (str (:window-ids-file ctx))
                     "1"
@@ -747,7 +750,7 @@
   (stop-existing-pack-web! ctx)
   (let [script (str (fs/path (:script-dir ctx) "pack_web.sh"))
         log (fs/path (:state-dir ctx) "dashboard.log")]
-    (process/process [script "--serve" (str (:working-dir ctx))]
+    (process/process ["zsh" script "--serve" (str (:working-dir ctx))]
                      {:out (str log) :err :out})
     (when-not (wait-for-file (dashboard-url-file ctx) 5000)
       (fail! (str red "Error:" reset " Dashboard did not start.")))
