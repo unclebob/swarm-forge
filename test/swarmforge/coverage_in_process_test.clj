@@ -264,6 +264,11 @@
   (is (= "" (swarmforge/yolo-flag "codex" {:extra-args "--yolo"})))
   (is (= "--permission-mode bypassPermissions "
          (swarmforge/yolo-flag "claude" {:extra-args ""})))
+  (is (= "--yolo " (swarmforge/yolo-flag "cursor" {:extra-args ""})))
+  (is (= "" (swarmforge/yolo-flag "cursor" {:extra-args "--yolo"})))
+  (is (= "" (swarmforge/yolo-flag "cursor" {:extra-args "--force"})))
+  (is (= ["agent" "cursor-agent"] (swarmforge/backend-binaries "cursor")))
+  (is (= ["claude"] (swarmforge/backend-binaries "claude")))
   (is (= "" (swarmforge/yolo-flag "unknown" {:extra-args ""})))
   (is (swarmforge/skip-config-line? "# hi"))
   (is (swarmforge/skip-config-line? ""))
