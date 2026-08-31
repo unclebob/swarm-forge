@@ -448,11 +448,12 @@
   ;; Given each pack backend
   ;; When SwarmForge builds the launch command
   ;; Then Codex and Copilot use --no-alt-screen, Claude disables the
-  ;; alternate screen, and Grok keeps --minimal
+  ;; alternate screen, Grok keeps --minimal, and Cursor pins --workspace
   (doseq [[agent needle] [["codex" "--no-alt-screen"]
                           ["copilot" "--no-alt-screen"]
                           ["claude" "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1"]
-                          ["grok" "--minimal"]]]
+                          ["grok" "--minimal"]
+                          ["cursor" "--workspace "]]]
     (let [root (tmp-dir)]
       (try
         (let [command (:out (run {:dir root}
@@ -487,7 +488,8 @@
   (doseq [[agent needle] [["codex" "--yolo"]
                           ["copilot" "--yolo"]
                           ["claude" "--permission-mode bypassPermissions"]
-                          ["grok" "--permission-mode bypassPermissions"]]]
+                          ["grok" "--permission-mode bypassPermissions"]
+                          ["cursor" "--yolo"]]]
     (let [root (tmp-dir)]
       (try
         (let [command (:out (run {:dir root}
@@ -498,6 +500,92 @@
           (is (str/includes? command needle) agent))
         (finally
           (fs/delete-tree root))))))
+
+(deftest cursor-launch-command-uses-workspace-trust-and-prompt
+  ;; Given a cursor pack role
+  ;; When SwarmForge builds the launch command
+  ;; Then it resolves agent or cursor-agent, pins --workspace and --trust,
+  ;; and cats the generated prompt as the first message
+  (let [root (tmp-dir)]
+    (try
+      (let [command (:out (run {:dir root}
+                               (script "swarmforge.bb")
+                               "--test-launch-command"
+                               (str root)
+                               "cursor"))]
+        (is (str/includes? command "$(command -v agent || command -v cursor-agent)"))
+        (is (str/includes? command "--workspace "))
+        (is (str/includes? command "--trust "))
+        (is (str/includes? command "--yolo "))
+        (is (not (str/includes? command " --worktree ")))
+        (is (not (str/includes? command " -p ")))
+        (is (not (str/includes? command "--print")))
+        (is (str/includes? command "\"$(cat "))
+        (is (str/includes? command ".swarmforge/prompts/coder.md"))
+        (is (fs/exists? (fs/path root ".swarmforge/prompts/coder.md"))))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest cursor-launch-command-passes-extra-cli-args
+  (let [root (tmp-dir)]
+    (try
+      (let [command (:out (run {:dir root}
+                               (script "swarmforge.bb")
+                               "--test-launch-command"
+                               (str root)
+                               "cursor"
+                               "--model composer-2.5"))]
+        (is (str/includes? command "--model composer-2.5"))
+        (is (str/includes? command "--yolo ")))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest cursor-launch-skips-duplicate-yolo-and-trust
+  (let [root (tmp-dir)]
+    (try
+      (let [command (:out (run {:dir root}
+                               (script "swarmforge.bb")
+                               "--test-launch-command"
+                               (str root)
+                               "cursor"
+                               "--force --trust"))]
+        (is (str/includes? command "--force"))
+        (is (str/includes? command "--trust"))
+        (is (not (str/includes? command "--yolo "))))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest cursor-lieutenant-launch-waits-for-chat
+  ;; Given a host lieutenant on cursor
+  ;; When SwarmForge builds the lieutenant launch command
+  ;; Then it does not pass an initial prompt
+  (let [root (tmp-dir)]
+    (try
+      (write-file (fs/path root "swarmforge/swarmforge.conf") "Lieutenant cursor\n")
+      (let [command (:out (run {:dir root}
+                               (script "swarmforge.bb")
+                               "--test-lieutenant-launch-command"
+                               (str root)))]
+        (is (str/includes? command "$(command -v agent || command -v cursor-agent)"))
+        (is (str/includes? command "--workspace "))
+        (is (fs/exists? (fs/path root ".swarmforge/prompts/lieutenant.md")))
+        (is (not (str/includes? command ".swarmforge/prompts/lieutenant.md"))
+            "lieutenant must not send an initial user prompt"))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest swarmforge-rejects-unknown-agent
+  (let [root (tmp-dir)]
+    (try
+      (write-file (fs/path root "swarmforge/constitution.prompt") "Read articles.\n")
+      (write-file (fs/path root "swarmforge/swarmforge.conf")
+                  "window coder foobar master\n")
+      (write-file (fs/path root "swarmforge/roles/coder.prompt") "coder\n")
+      (let [result (run {:dir root :ok? false} (script "swarmforge.bb") "--test-parse" (str root))]
+        (is (= 1 (:exit result)))
+        (is (str/includes? (:err result) "Unsupported agent 'foobar'")))
+      (finally
+        (fs/delete-tree root)))))
 
 (deftest launch-command-puts-project-tool-bin-on-path
   ;; Given a launched role
@@ -608,7 +696,26 @@
         (is (str/includes? (str (:err help) (:out help)) "dry4clj"))
         (is (str/includes? (str (:err help) (:out help)) "cloverage"))
         (is (str/includes? (str (:err help) (:out help)) "speclj"))
-        (is (str/includes? (str (:err help) (:out help)) "speclj-structure-check")))
+        (is (str/includes? (str (:err help) (:out help)) "speclj-structure-check"))
+        (is (str/includes? (str (:err help) (:out help)) "mutate4py"))
+        (is (str/includes? (str (:err help) (:out help)) "crap4py"))
+        (is (str/includes? (str (:err help) (:out help)) "dry4python")))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest swarm-tool-ensure-crap4py-installs-venv-wrapper
+  ;; Given a pack project
+  ;; When swarm_tool.sh ensure crap4py
+  ;; Then a project-local venv wrapper is installed and require succeeds
+  (let [root (tmp-dir)]
+    (try
+      (write-file (fs/path root ".swarmforge/roles.tsv")
+                  (format "specifier\tmaster\t%s\tsession\tSpecifier\tcodex\ttask\n" root))
+      (run {:dir root} (script "swarm_tool.sh") "ensure" "crap4py")
+      (let [wrapper (slurp (str (fs/path root ".swarmforge/bin/crap4py")))]
+        (is (str/includes? wrapper ".swarmforge/tools/py/bin/crap4py"))
+        (is (fs/executable? (fs/path root ".swarmforge/tools/py/bin/crap4py")))
+        (is (zero? (:exit (run {:dir root} (script "swarm_tool.sh") "require" "crap4py")))))
       (finally
         (fs/delete-tree root)))))
 
