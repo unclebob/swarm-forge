@@ -31,7 +31,11 @@
    "mutate4go" {:source "github.com/unclebob/mutate4go" :bb-task "mutate4go"}
    "crap4java" {:source "github.com/unclebob/crap4java" :bb-task "crap4java"}
    "dry4java" {:source "github.com/unclebob/dry4java" :bb-task "dry4java"}
-   "mutate4java" {:source "github.com/unclebob/mutate4java" :bb-task "mutate4java"}})
+   "mutate4java" {:source "github.com/unclebob/mutate4java" :bb-task "mutate4java"}
+   "mutate4py" {:pip "mutate4py" :cli "mutate4py"}
+   "crap4py" {:pip "crap4py" :cli "crap4py"}
+   "dry4python" {:pip "git+https://github.com/marandaneto/dry4python.git"
+                 :cli "dry4python"}})
 
 (def usage-text
   (str "Usage:\n"
@@ -149,7 +153,7 @@
 
 (defn rewrite-bash [tool]
   (cond
-    (#{"clj-mutate" "mutate4go" "mutate4java"} tool) (mutate-rewrite-bash)
+    (#{"clj-mutate" "mutate4go" "mutate4java" "mutate4py" "crap4py"} tool) (mutate-rewrite-bash)
     (= "gherkin-mutator" tool) (gherkin-rewrite-bash)
     :else ""))
 
@@ -190,13 +194,44 @@
           (when (seq args) (str " " args))
           " \"$@\"\n"))))
 
+(defn py-venv-dir [root]
+  (fs/path root ".swarmforge" "tools" "py"))
+
+(defn ensure-py-venv! [root]
+  (let [venv (py-venv-dir root)
+        python (fs/path venv "bin" "python")]
+    (when-not (fs/executable? python)
+      (let [result (sh/sh "python3" "-m" "venv" (str venv))]
+        (when-not (zero? (:exit result))
+          (exit! 1 (str "Failed to create Python venv at " venv "\n"
+                        (:err result) (:out result))))))
+    venv))
+
+(defn write-pip-wrapper! [root tool spec]
+  (let [venv (ensure-py-venv! root)
+        pip (str (fs/path venv "bin" "pip"))
+        pkg (:pip spec)
+        cli (or (:cli spec) tool)
+        install (sh/sh pip "install" "-q" pkg)]
+    (when-not (zero? (:exit install))
+      (exit! 1 (str "Failed to pip install " pkg "\n"
+                    (:err install) (:out install))))
+    (write-wrapper!
+     (wrapper-path root tool)
+     (str (rewrite-bash tool)
+          "exec " (sq (str (fs/path venv "bin" cli))) " \"$@\"\n"))))
+
 (defn install-one! [tool]
   (let [spec (tool-spec tool)
         root (project-root)
         name (canonical-tool tool)
-        target (if-let [bb-task (:bb-task spec)]
-                 (write-bb-wrapper! root name bb-task
+        target (cond
+                 (:bb-task spec)
+                 (write-bb-wrapper! root name (:bb-task spec)
                                     (ensure-source! root (:source spec)))
+                 (:pip spec)
+                 (write-pip-wrapper! root name spec)
+                 :else
                  (write-mvn-wrapper! root name spec))]
     (println "INSTALLED:" name (str target))))
 

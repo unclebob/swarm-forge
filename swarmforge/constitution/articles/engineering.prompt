@@ -1,13 +1,15 @@
 # Engineering Rules
 
 ## Startup Tools
-- On startup, procure the latest version of each required CRAP, mutation, and DRY tool for the project language directly from the listed `github.com/unclebob/...` repositories and get each one ready to run.
-- Resolve each listed repository at its latest available upstream version before installing or building it.
-- Do not rely on stale cached, vendored, or preinstalled copies when a fresh GitHub install/build is possible in the current environment.
+- On startup, procure the latest version of each required CRAP, mutation, and DRY tool for the project language from the listed sources and get each one ready to run.
+- For Go, Clojure, and Java, resolve each listed `github.com/unclebob/...` repository at its latest available upstream version before installing or building it.
+- For Python, install the listed third-party ports with `swarm_tool.sh ensure <tool>` (project-local venv under `.swarmforge/tools/py`). Do not invent `github.com/unclebob/*4py` URLs.
+- Do not rely on stale cached, vendored, or preinstalled copies when a fresh install/build from the listed source is possible in the current environment.
 - Language tool table:
   - Go: install with `go install`; mutation `github.com/unclebob/mutate4go`, CRAP `github.com/unclebob/crap4go`, DRY `github.com/unclebob/dry4go`.
   - Clojure: install with Clojure CLI/deps.edn; mutation `github.com/unclebob/clj-mutate`, CRAP `github.com/unclebob/crap4clj`, DRY `github.com/unclebob/dry4clj`.
   - Java: install with Maven (`mvn`); mutation `github.com/unclebob/mutate4java`, CRAP `github.com/unclebob/crap4java`, DRY `github.com/unclebob/dry4java`.
+  - Python: install with `swarm_tool.sh ensure`; mutation PyPI `mutate4py` (port of mutate4go), CRAP PyPI `crap4py` (port of crap4go), DRY `dry4python` from `github.com/marandaneto/dry4python` (port of dry4go).
 
 ## Language Defaults
 - For Clojure projects, prefer Babashka where possible.
@@ -15,6 +17,8 @@
 - Install Speclj with `swarm_tool.sh require speclj`. If missing, `swarm_tool.sh ensure speclj`.
 - If a Speclj spec file changed, run `swarm_tool.sh require speclj-structure-check` (ensure if missing) and check the spec file before running tests.
 - For Java projects, avoid using Maven to run tests; build dedicated test runners and run those instead.
+- For Python projects, write `pytest` tests, not `unittest`. Keep tests close to the behavior being changed.
+- Generate LCOV with `pytest --cov --cov-branch --cov-report=lcov:lcov.info` before `crap4py` or `mutate4py` when those tools require `--lcov`.
 
 ## Design And Testability
 - Work in small, reviewable increments.
@@ -48,7 +52,7 @@
 - Run the relevant local verification command before handoff whenever the project has one.
 
 ## Guardrails
-- Do not invent project-local CRAP, DRY, mutation, or coverage proxies. Install and run the constitution tools (`crap4clj` with cloverage, `dry4clj`, `clj-mutate`, speclj, or the language table). Do not treat a homegrown `bb crap` / `bb coverage` / `bb mutation-count` task as those tools.
+- Do not invent project-local CRAP, DRY, mutation, or coverage proxies. Install and run the constitution tools (`crap4clj` with cloverage, `dry4clj`, `clj-mutate`, speclj, `crap4py`, `dry4python`, `mutate4py`, or the language table). Do not treat a homegrown `bb crap` / `bb coverage` / `bb mutation-count` task as those tools.
 - Do not edit mutation testing or Gherkin acceptance mutation manifests by hand; allow approved mutation tools to update those manifests as part of their normal runs.
 - Do not commit unrelated local changes or generated artifacts unless required for the task.
 - Before relying on an unfamiliar command, inspect local help or project documentation.

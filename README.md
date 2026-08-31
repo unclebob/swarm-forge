@@ -76,7 +76,7 @@ SwarmForge runs locally. Before starting a runnable branch, make sure the target
 - `git`
 - `tmux`
 - Babashka (`bb`)
-- At least one configured agent backend, such as `codex`, `claude`, `copilot`, or `grok`
+- At least one configured agent backend, such as `codex`, `claude`, `copilot`, `cursor`, or `grok`
 
 ## Getting Started
 
@@ -186,7 +186,7 @@ SwarmForge is a lightweight, tmux-based orchestration layer that:
 - Creates one tmux session per configured role
 - Serves a **pack cockpit** in the browser and, by default on the pack branches, skips a Terminal window per role (`window-invisible`)
 - Reads behavior from project-local `swarmforge/roles/<role>.prompt` files plus a layered `swarmforge/constitution.prompt`
-- Supports per-role backends such as `claude`, `codex`, `copilot`, or `grok`
+- Supports per-role backends such as `claude`, `codex`, `copilot`, `cursor`, or `grok`
 - Puts the shared `swarmforge/scripts/` directory on each agent's `PATH`, including handoff helpers for active swarm communication
 - Creates git worktrees under `.worktrees/` for roles assigned to dedicated worktree names
 - Initializes a git repository in a new working directory when needed
@@ -197,7 +197,7 @@ SwarmForge is a lightweight, tmux-based orchestration layer that:
 - **Config-Driven Topology** — The swarm shape comes from `swarmforge/swarmforge.conf`, not hardcoded shell variables.
 - **Project-Local Roles** — Each role is defined by `swarmforge/roles/<role>.prompt` in the working tree being orchestrated.
 - **Layered Constitution** — `swarmforge/constitution.prompt` directs agents to read article files under `swarmforge/constitution/articles/`.
-- **Backend Selection Per Role** — A role can launch `claude`, `codex`, `copilot`, or `grok`.
+- **Backend Selection Per Role** — A role can launch `claude`, `codex`, `copilot`, `cursor`, or `grok`.
 - **Pack Cockpit** — A local dashboard for New Task, Attention, the board, Work Queue, master-agent chat, and Teardown.
 - **Observable Swarm** — Watch agents from the dashboard; open a live pane when you need the raw session. Optional `window` lines still open a Terminal surface per role.
 - **Self-Hosted & Lightweight** — Runs locally in tmux and a browser, with optional Terminal windows.
@@ -341,7 +341,10 @@ Any fields after receive-mode and the propagation token are passed directly to t
 ```conf
 window coder copilot wt-coder --yolo
 window architect claude wt-arch task --dangerously-skip-permissions
+window specifier cursor master
 ```
+
+The `cursor` backend launches the Cursor CLI (`agent`, or `cursor-agent` if `agent` is not on `PATH`). Authenticate with `agent login` or `CURSOR_API_KEY`. SwarmForge already creates git worktrees; do not pass Cursor `--worktree`.
 
 You can define as many windows as your project needs. Each `role` maps to a corresponding prompt file at `swarmforge/roles/<role>.prompt`, so a config containing `architect`, `coder`, `reviewer`, `research`, and `release` windows would expect:
 

@@ -144,7 +144,7 @@
 
 (def receive-modes #{"task" "batch"})
 (def propagation-modes #{"forward-only" "back-one" "back-all"})
-(def known-agents #{"claude" "codex" "copilot" "grok"})
+(def known-agents #{"claude" "codex" "copilot" "cursor" "grok"})
 
 (defn receive-fields [trailing]
   (let [[receive-mode after-receive]
@@ -375,9 +375,18 @@
   (when-not (command-exists? command)
     (fail! (str red "Error:" reset " '" command "' is required but not installed."))))
 
+(defn backend-binaries [agent]
+  (case agent
+    "cursor" ["agent" "cursor-agent"]
+    [agent]))
+
 (defn check-backend-dependencies! [ctx]
-  (doseq [agent (map :agent (:roles ctx))]
-    (check-dependency! agent)))
+  (doseq [agent (distinct (map :agent (:roles ctx)))]
+    (let [bins (backend-binaries agent)]
+      (when-not (some command-exists? bins)
+        (fail! (str red "Error:" reset " '"
+                    (str/join "' or '" bins)
+                    "' is required but not installed."))))))
 
 (defn create-role-session! [ctx session title]
   (sh "tmux" "-S" (:tmux-socket ctx) "new-session" "-d" "-s" session "-n" agent-window)
@@ -470,7 +479,11 @@
     "codex" (if (extra-has? row "--yolo") "" "--yolo ")
     "copilot" (if (extra-has? row "--yolo") "" "--yolo ")
     "claude" (if (extra-has? row "bypassPermissions") "" "--permission-mode bypassPermissions ")
+    "cursor" (if (or (extra-has? row "--yolo") (extra-has? row "--force")) "" "--yolo ")
     ""))
+
+(defn cursor-trust-flag [row]
+  (if (extra-has? row "--trust") "" "--trust "))
 
 (defn grok-permission-prefix [row]
   "--permission-mode bypassPermissions ")
@@ -523,7 +536,12 @@
                   "grok" (str "grok --cwd " (sq (str role-worktree)) " "
                               (grok-permission-prefix row) (extra-args-prefix row)
                               "--minimal --rules " prompt
-                              (when initial-prompt? (str " --verbatim " prompt)))))
+                              (when initial-prompt? (str " --verbatim " prompt)))
+                  "cursor" (str "$(command -v agent || command -v cursor-agent) --workspace "
+                                (sq (str role-worktree)) " "
+                                (cursor-trust-flag row) (yolo-flag agent row)
+                                (extra-args-prefix row)
+                                (when initial-prompt? prompt))))
       (= index 0)
       (str "; exit_code=$?; SWARMFORGE_TERMINAL_BACKEND=" (sq (:terminal-backend ctx))
            " nohup " (sq (str (fs/path (:script-dir ctx) "swarm-cleanup.sh")))
