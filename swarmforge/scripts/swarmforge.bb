@@ -557,16 +557,49 @@
               (str (ensure-newline text)
                    "\n" header "\ntrust_level = \"trusted\"\n"))))))
 
+(def shell-pane-commands
+  "Pane commands that mean the launch command has NOT executed yet (still at the
+  interactive shell), as opposed to the agent process having taken over the pane."
+  #{"zsh" "-zsh" "bash" "-bash" "sh" "-sh" "fish" "-fish" "tcsh" "-tcsh"})
+
+(defn pane-current-command [ctx target]
+  (sh-out "tmux" "-S" (:tmux-socket ctx) "display-message" "-p" "-t" target
+          "#{pane_current_command}"))
+
+(defn send-role-launch-keys! [ctx target command]
+  ;; Abort any partial/continuation line, clear the line buffer, send the command
+  ;; text, then send Enter as a SEPARATE keystroke after a short pause.
+  (sh "tmux" "-S" (:tmux-socket ctx) "send-keys" "-t" target "C-c")
+  (Thread/sleep 150)
+  (sh "tmux" "-S" (:tmux-socket ctx) "send-keys" "-t" target "C-u")
+  (sh "tmux" "-S" (:tmux-socket ctx) "send-keys" "-t" target command)
+  (Thread/sleep (env-long "SWARMFORGE_AGENT_ENTER_DELAY_MS" 400))
+  (sh "tmux" "-S" (:tmux-socket ctx) "send-keys" "-t" target "Enter"))
+
 (defn launch-role! [ctx index row]
   (when (= "codex" (:agent row))
     (ensure-codex-trust! (:worktree-path row)))
   (let [session (:session row)
         display (:display-name row)
-        command (launch-command ctx index row)]
-    (sh "tmux" "-S" (:tmux-socket ctx) "send-keys" "-t"
-        (tmux-agent-target display (:tmux-pane-base-index ctx) session)
-        command "Enter")
-    (println (str "  " cyan "[" display "]" reset " started in session " session))))
+        target (tmux-agent-target display (:tmux-pane-base-index ctx) session)
+        command (launch-command ctx index row)
+        max-tries (env-long "SWARMFORGE_AGENT_LAUNCH_RETRIES" 8)]
+    ;; The first (master) session is the very first shell on a cold tmux server;
+    ;; its prompt can take longer to initialize than any fixed delay, so a single
+    ;; send-keys races prompt init and the text/Enter get dropped. Send, then VERIFY
+    ;; the agent actually took over the pane; re-send until it does. This is adaptive
+    ;; to any prompt speed and self-heals a swallowed launch instead of leaving the
+    ;; master dead (which strands the whole pack waiting for a handoff).
+    (loop [attempt 1]
+      (send-role-launch-keys! ctx target command)
+      (Thread/sleep 1000)
+      (cond
+        (not (contains? shell-pane-commands (pane-current-command ctx target)))
+        (println (str "  " cyan "[" display "]" reset " started in session " session))
+        (>= attempt max-tries)
+        (println (str "  " yellow "[" display "]" reset
+                      " WARNING: agent did not start after " attempt " attempts"))
+        :else (recur (inc attempt))))))
 
 (defn stop-handoff-daemon! [ctx]
   (process/sh {:continue true}
@@ -845,8 +878,10 @@
   (println (str green "Starting agents..." reset))
   (let [delay-ms (env-long "SWARMFORGE_AGENT_START_DELAY_MS" 1500)]
     (doseq [[index row] (map-indexed vector (:roles ctx))]
-      (when (pos? index)
-        (Thread/sleep delay-ms))
+      ;; Delay before every role, including index 0 (the master). It is the first
+      ;; shell on a cold tmux server and its prompt is the slowest to initialize;
+      ;; giving it the same head start as the others reduces launch retries.
+      (Thread/sleep delay-ms)
       (launch-role! ctx index row))))
 
 (defn boot-sessions! [ctx]
