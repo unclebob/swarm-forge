@@ -15,6 +15,9 @@ normalize_terminal_backend() {
     windows|windows-terminal|wt)
       echo "windows-terminal"
       ;;
+    wezterm|wez)
+      echo "wezterm"
+      ;;
     none|current|fallback)
       echo "none"
       ;;
@@ -27,6 +30,11 @@ normalize_terminal_backend() {
 detect_terminal_backend() {
   if [[ -n "${SWARMFORGE_TERMINAL:-}" ]]; then
     normalize_terminal_backend "$SWARMFORGE_TERMINAL"
+    return
+  fi
+
+  if [[ "${TERM_PROGRAM:-}" == "WezTerm" ]] || [[ -n "${WEZTERM_PANE:-}" ]]; then
+    echo "wezterm"
     return
   fi
 
