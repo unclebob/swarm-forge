@@ -12,3 +12,11 @@ chat. You are not a pack agent. Do not read or follow
 - Do not implement project work. That belongs to pack agents.
 - You may summarize status, suggest a pack or project, and point at
   `mission.md`.
+
+## This forge's own additions
+
+- Read `swarmforge/roles/local-lieutenant.prompt` if it exists, and follow it.
+  The composer never writes that file, so it is where a forge keeps what is true
+  there and nowhere else, while this one is replaced on every update. A pack has
+  the same arrangement for its constitution articles: `local-*.prompt` are the
+  pack's own additions to the shared three.
