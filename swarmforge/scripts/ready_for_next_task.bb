@@ -100,14 +100,34 @@
       (println line)))
   (System/exit status))
 
+;; The finishing step a project owns. The tooling decides when the event is true
+;; and the project decides what it means, through its own
+;; swarmforge/hooks/card-complete.sh; the output belongs in this pane, where the
+;; role that just took the card can read it.
+(defn run-completion-hook! [file]
+  (let [result (sh/sh (str (fs/path script-dir "run_hook.sh")) "card-complete"
+                      "--task" (header-value file "task" "")
+                      "--commit" (header-value file "commit" "")
+                      "--from" (header-value file "from" "")
+                      "--role" (or (ready-for-next-guard/current-role) ""))]
+    (print (:out result))
+    (print (:err result))
+    (flush)))
+
 (defn merge-git-handoff! [file]
   (when (= "git_handoff" (header-field file "type"))
     (let [from (header-field file "from")
           commit (header-field file "commit")]
       (when (and from commit)
-        (let [result (sh/sh (str (fs/path script-dir "merge_and_process.sh")) from commit)]
+        (let [fresh? (not (zero? (:exit (sh/sh "git" "merge-base" "--is-ancestor" commit "HEAD"))))
+              result (sh/sh (str (fs/path script-dir "merge_and_process.sh")) from commit)]
           (when-not (zero? (:exit result))
-            (fail! 1 (str/trim (str (:err result) "\n" (:out result))))))))))
+            (fail! 1 (str/trim (str (:err result) "\n" (:out result)))))
+          ;; The hook fires when this merge is what brought the card's work in, so
+          ;; reading a task that is already in process does not run a project's
+          ;; finishing step again.
+          (when fresh?
+            (run-completion-hook! file)))))))
 
 (defn -main []
   (let [inbox (inbox-dir)

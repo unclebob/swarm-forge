@@ -36,6 +36,118 @@
 (defn script [name]
   (str (fs/path scripts-dir name)))
 
+(defn write-completion-hook! [root body]
+  (let [hook (fs/path root "swarmforge/hooks/card-complete.sh")]
+    (write-file hook (str "#!/bin/sh\n" body))
+    (run {:dir root} "chmod" "+x" (str hook))
+    hook))
+
+(defn write-board-row! [root task lane]
+  (write-file (fs/path root ".swarmforge/board/tasks.tsv")
+              (format "%s\t%s\t2026-09-25T00:00:00Z\t2026-09-25T00:00:00Z\ttask-id\t0\n"
+                      task lane)))
+
+(deftest completion-hook-runs-the-projects-own-script
+  ;; Given a project with a finishing step of its own and a card the board calls done
+  ;; When the tooling runs the card-complete event for that card
+  ;; Then the project's script runs, told which card and which sender, and its output is the tooling's output
+  (let [root (tmp-dir)]
+    (try
+      (init-repo! root)
+      (write-board-row! root "HTW" "done")
+      (write-completion-hook! root
+                              (str "echo \"ran for $SWARMFORGE_TASK from $SWARMFORGE_FROM ($SWARMFORGE_COMMIT)\"\n"
+                                   "echo ran > .swarmforge/hook-ran\n"))
+      (let [result (run {:dir root} (script "run_hook.sh") "card-complete"
+                        "--task" "HTW" "--from" "coder" "--commit" "abc123")]
+        (is (zero? (:exit result)) (:err result))
+        (is (str/includes? (:out result) "--- hook card-complete (card HTW) from coder abc123 ---"))
+        (is (str/includes? (:out result) "ran for HTW from coder (abc123)"))
+        (is (str/includes? (:out result) "--- hook card-complete exit 0 ---"))
+        (is (fs/exists? (fs/path root ".swarmforge/hook-ran"))))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest completion-hook-waits-for-the-board-to-call-the-card-done
+  ;; Given the same project with the card still in a role's lane
+  ;; When the tooling runs the event for it
+  ;; Then the project's script does not run, and the tooling says why
+  (let [root (tmp-dir)]
+    (try
+      (init-repo! root)
+      (write-board-row! root "HTW" "coder")
+      (write-completion-hook! root "echo ran > .swarmforge/hook-ran\n")
+      (let [result (run {:dir root} (script "run_hook.sh") "card-complete"
+                        "--task" "HTW" "--from" "coder")]
+        (is (zero? (:exit result)) (:err result))
+        (is (str/includes? (:out result) "HOOK_DEFERRED card-complete HTW (card lane: coder)"))
+        (is (not (fs/exists? (fs/path root ".swarmforge/hook-ran")))))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest completion-hook-reports-a-failure-without-failing-the-merge
+  ;; Given a project whose finishing step fails
+  ;; When the tooling runs the event
+  ;; Then it reports the failure and still succeeds itself: the merge has already
+  ;; happened, and a failed finishing step never un-merges work
+  (let [root (tmp-dir)]
+    (try
+      (init-repo! root)
+      (write-board-row! root "HTW" "done")
+      (write-completion-hook! root "exit 3\n")
+      (let [result (run {:dir root} (script "run_hook.sh") "card-complete"
+                        "--task" "HTW" "--from" "coder")]
+        (is (zero? (:exit result)) (:err result))
+        (is (str/includes? (:out result) "--- hook card-complete exit 3 ---"))
+        (is (str/includes? (:out result) "HOOK_FAILED card-complete HTW (exit 3)")))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest completion-hook-fires-when-a-cards-work-lands-on-master
+  ;; Given a project the board calls done, a finishing step of its own, and a
+  ;; handoff carrying the card's commit
+  ;; When the role on master reads it with ready_for_next
+  ;; Then the work is merged and the project's finishing step runs for that card
+  (let [root (tmp-dir)]
+    (try
+      (init-repo! root)
+      (let [branch (str/trim (:out (run {:dir root} "git" "rev-parse" "--abbrev-ref" "HEAD")))]
+        (run {:dir root} "git" "checkout" "-q" "-b" "work")
+        (write-file (fs/path root "work.txt") "work\n")
+        (run {:dir root} "git" "add" "work.txt")
+        (run {:dir root} "git" "commit" "-q" "-m" "work")
+        (let [commit (str/trim (:out (run {:dir root} "git" "rev-parse" "HEAD")))]
+          (run {:dir root} "git" "checkout" "-q" branch)
+          (write-file (fs/path root ".swarmforge/roles.tsv")
+                      (format "sender\tmaster\t%s\tsession\tSender\tcodex\ttask\tforward-only\n" root))
+          (doseq [dir [".swarmforge/handoffs/outbox/tmp"
+                       ".swarmforge/handoffs/sent"
+                       ".swarmforge/handoffs/failed"
+                       ".swarmforge/handoffs/inbox/new"
+                       ".swarmforge/handoffs/inbox/in_process"
+                       ".swarmforge/handoffs/inbox/completed"]]
+            (fs/create-dirs (fs/path root dir)))
+          (write-board-row! root "HTW" "done")
+          (write-file (fs/path root "tasks/HTW.md") "# HTW\n")
+          (write-completion-hook! root "echo \"ran for $SWARMFORGE_TASK\" > .swarmforge/hook-ran\n")
+          (write-file (fs/path root ".swarmforge/handoffs/inbox/new/50_item.handoff")
+                      (str "id: 1\n"
+                           "from: coder\n"
+                           "to: sender\n"
+                           "priority: 50\n"
+                           "type: git_handoff\n"
+                           "task: HTW\n"
+                           "commit: " commit "\n"
+                           "\n"
+                           "the card's work\n"))
+          (let [ready (run {:dir root :env {"SWARMFORGE_ROLE" "sender"}} (script "ready_for_next.sh"))]
+            (is (zero? (:exit ready)) (:err ready))
+            (is (str/includes? (:out ready) "--- hook card-complete (card HTW) from coder"))
+            (is (fs/exists? (fs/path root "work.txt")))
+            (is (fs/exists? (fs/path root ".swarmforge/hook-ran"))))))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest handoff-lib-parses-and-prints-handoff-files
   (let [root (tmp-dir)
         handoff-file (fs/path root "task.handoff")]
@@ -1130,4 +1242,3 @@
         (fs/delete-tree host)
         (fs/delete-tree base)
         (fs/delete-tree packs)))))
-

@@ -271,6 +271,7 @@
    "done_with_current_task.sh" "done_with_current_task.bb"
    "ready_for_next_batch.sh" "ready_for_next_batch.bb"
    "done_with_current_batch.sh" "done_with_current_batch.bb"
+   "run_hook.sh" "run_hook.bb"
    "handoffd.bb" "stop_handoff_daemon.bb" "stop_handoff_daemon.sh"
    "swarm-cleanup.sh" "swarm-window-watchdog.sh" "swarm_window_watchdog.bb"
    "swarm-terminal-adapter.sh" "swarmforge.sh" "swarmforge.bb"
@@ -434,6 +435,7 @@
          "- Operator follow-ups arrive as `[id] text` in this pane. Answer with `pack_dashboard_request.sh answer <id> ./tmp/answer.txt`.\n"
          "- Ask the operator with `pack_dashboard_request.sh clarify ./tmp/question.txt`. Do not ask in the pane.\n"
          "- Do not ask for approval in the pane. Queue `git_handoff`; the operator uses Attention.\n"
+         "- When a card's work merges into the master worktree and the board already marks the card done, the tooling runs `swarmforge/hooks/card-complete.sh` if the project provides one, and prints what it did. A `HOOK_FAILED` line means the project's finishing step failed: report it to the operator rather than quietly continuing.\n"
          (when last-role?
            (str "- You are the last role in this pack. After this pack step, queue a git_handoff. The helper marks the card Done. Do not list every other role on to: to finish the card.\n"))
          (when (= role "specifier")
