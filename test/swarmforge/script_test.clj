@@ -1108,7 +1108,8 @@
       (let [result (run {:dir host
                          :env {"SWARMFORGE_BASE_DIR" (str base)
                                "SWARMFORGE_PACKS_DIR" (str packs)}}
-                        (str (fs/path repo-root "get-swarm-forge")))]
+                        (str (fs/path repo-root "get-swarm-forge"))
+                        "project-manager")]
         (is (zero? (:exit result)) (:err result))
         (is (= "host-readme\n" (slurp (str (fs/path host "README.md")))))
         (is (= "{:paths [\"test\"]}\n" (slurp (str (fs/path host "bb.edn")))))
@@ -1130,4 +1131,3 @@
         (fs/delete-tree host)
         (fs/delete-tree base)
         (fs/delete-tree packs)))))
-
