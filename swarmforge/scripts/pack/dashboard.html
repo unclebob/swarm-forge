@@ -60,6 +60,10 @@ header.top h1{margin:0;font-size:15px}.meta{color:var(--muted);font-size:12px}.m
 .columns{display:flex;gap:12px;align-items:stretch;min-width:min-content;flex:1;min-height:0}
 .col{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;min-height:0;max-height:100%}
 .col h3{margin:0 0 8px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.col[data-lane="done"] h3{cursor:pointer;user-select:none}
+.col[data-lane="done"] h3:hover{color:var(--ink)}
+.col[data-lane="done"] .col-body{display:none}
+.col[data-lane="done"].expanded .col-body{display:flex}
 .col-body{display:flex;flex-direction:column;align-items:flex-start;gap:8px;flex:1;min-height:100px;overflow:auto;padding:8px;background:rgba(255,255,255,.35);border:1px dashed #c5cbc2;border-radius:10px;width:max-content;min-width:var(--card-min-w)}
 .batch{display:flex;flex-direction:column;gap:0;width:max-content;min-width:var(--card-min-w)}
 .card{background:var(--card);border:1px solid #d0cbb8;border-radius:8px;padding:7px 8px;font-size:11px;width:max-content;max-width:var(--card-max-w);min-width:var(--card-min-w);min-height:var(--card-min-h);cursor:pointer;display:flex;flex-direction:column;gap:3px}
@@ -295,16 +299,28 @@ function cardEl(task, opts) {
   return card;
 }
 
+const doneExpanded = new Set();
+
 function columnEl(lane, tasks, project) {
   const col = document.createElement("div");
   col.className = "col";
   col.dataset.lane = lane;
   const heading = document.createElement("h3");
-  heading.textContent = displayName(lane);
   const body = document.createElement("div");
   body.className = "col-body";
   body.id = "lane-" + (project ? project + "-" : "") + lane;
   const mine = tasks.filter((task) => task.lane === lane);
+  if (lane === "done") {
+    const key = project || "";
+    heading.textContent = displayName(lane) + " (" + mine.length + ")";
+    if (doneExpanded.has(key)) col.classList.add("expanded");
+    heading.onclick = () => {
+      if (doneExpanded.has(key)) { doneExpanded.delete(key); col.classList.remove("expanded"); }
+      else { doneExpanded.add(key); col.classList.add("expanded"); }
+    };
+  } else {
+    heading.textContent = displayName(lane);
+  }
   let i = 0;
   while (i < mine.length) {
     const id = mine[i].batch;

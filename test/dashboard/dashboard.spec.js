@@ -393,4 +393,23 @@ test.describe("pack dashboard", () => {
       await stopDashboard(local);
     }
   });
+
+  test("the done column is collapsed until its header is clicked", async ({ page }) => {
+    // The done column grows for the life of a forge, so it starts closed and says
+    // how many cards it holds; its header is the handle. The card has to be in the
+    // fixture before the page reads it, because the read is one request.
+    fs.appendFileSync(
+      path.join(handle.root, "projects/htw/.swarmforge/board/tasks.tsv"),
+      "closed-card\tdone\t2026-01-01T00:00:00Z\t2026-01-01T00:00:00Z\t20260101T000001Z-closed-card\t0\n"
+    );
+    await page.goto(handle.url);
+    const done = page.locator('.col[data-lane="done"]');
+    await expect(done.locator("h3")).toHaveText("Done (1)");
+    await expect(done.locator(".col-body")).toBeHidden();
+    await done.locator("h3").click();
+    await expect(done.locator(".col-body")).toBeVisible();
+    await expect(done.locator(".col-body")).toContainText("closed-card");
+    await done.locator("h3").click();
+    await expect(done.locator(".col-body")).toBeHidden();
+  });
 });
