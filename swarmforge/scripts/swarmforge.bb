@@ -449,6 +449,9 @@
 
 (defn write-agent-instruction-file! [ctx role prompt-file last-role?]
   (if (= role "lieutenant")
+    ;; The lieutenant is not a pack agent, so it gets no constitution line, and
+    ;; this file holds its whole prompt: claude and grok read the file through
+    ;; their own flags, so it is their instructions, not a note about them.
     (fs/copy (fs/path (:roles-dir ctx) "lieutenant.prompt")
              prompt-file
              {:replace-existing true})
@@ -487,6 +490,21 @@
     "--no-alt-screen "
     ""))
 
+(defn reads-own-prompt-file? [agent]
+  ;; Claude opens the prompt file through --append-system-prompt-file and grok
+  ;; through --rules: for those two the file itself is an argument they read,
+  ;; so handing them its contents as a first message would be a second copy of
+  ;; the same instructions. No other agent has such a flag.
+  (#{"claude" "grok"} agent))
+
+(defn gets-initial-prompt? [role agent]
+  ;; Every pack role is handed its prompt as the session's first message. A
+  ;; lieutenant was excluded because claude and grok read the file themselves -
+  ;; but codex and copilot have no such flag, so a codex lieutenant used to
+  ;; start with no instructions at all: that is the session that ran unaware of
+  ;; its own prompt. Ask the agent, not the role.
+  (or (not= role "lieutenant") (not (reads-own-prompt-file? agent))))
+
 (defn launch-command [ctx index row]
   (let [role (:role row)
         agent (:agent row)
@@ -498,7 +516,14 @@
         prompt-file (fs/path (:prompts-dir ctx) (str role ".md"))
         tool-bin (fs/path (:working-dir ctx) ".swarmforge" "bin")
         prompt (str "\"$(cat " (sq (str prompt-file)) ")\"")
-        initial-prompt? (not= role "lieutenant")
+        ;; A lieutenant's first message names its rules instead of carrying
+        ;; them: the instruction file holds the whole role prompt, which is more
+        ;; than a first message needs. Claude and grok are handed that file
+        ;; through their own flags, so this is what codex and copilot receive.
+        lieutenant-prompt (str "\"Read swarmforge/roles/lieutenant.prompt, then read every "
+                               "file it refers to recursively, and follow all of those instructions.\"")
+        initial-prompt (if (= role "lieutenant") lieutenant-prompt prompt)
+        initial-prompt? (gets-initial-prompt? role agent)
         base (str "export SWARMFORGE_ROLE=" (sq role)
                   " && export PATH=" (sq (str tool-bin)) ":" (sq (str role-script-dir)) ":$PATH"
                   " && cd " (sq (str role-worktree))
@@ -514,12 +539,12 @@
                   "codex" (str "codex -C " (sq (str role-worktree)) " "
                                (no-alt-screen-flag agent row) (yolo-flag agent row)
                                (extra-args-prefix row)
-                               (when initial-prompt? prompt))
+                               (when initial-prompt? initial-prompt))
                   "copilot" (str "copilot -C " (sq (str role-worktree)) " "
                                  (no-alt-screen-flag agent row)
                                  "--name " (sq (str "SwarmForge " display)) " "
                                  (yolo-flag agent row) (extra-args-prefix row)
-                                 (when initial-prompt? (str "-i " prompt)))
+                                 (when initial-prompt? (str "-i " initial-prompt)))
                   "grok" (str "grok --cwd " (sq (str role-worktree)) " "
                               (grok-permission-prefix row) (extra-args-prefix row)
                               "--minimal --rules " prompt

@@ -412,6 +412,38 @@
       (finally
         (fs/delete-tree root)))))
 
+(deftest a-lieutenant-whose-agent-reads-no-prompt-file-is-handed-its-prompt
+  ;; Given a host lieutenant on an agent with no flag that reads its instruction
+  ;; file, and the same lieutenant on an agent that has one
+  ;; When SwarmForge builds the lieutenant launch command
+  ;; Then the first names the instructions to read - not their contents, and not
+  ;; nothing at all - and the second is left to read the file through its flag
+  (let [root (tmp-dir)]
+    (try
+      (write-file (fs/path root "swarmforge/swarmforge.conf") "Lieutenant codex --yolo\n")
+      (let [codex (:out (run {:dir root}
+                             (script "swarmforge.bb")
+                             "--test-lieutenant-launch-command"
+                             (str root)))]
+        (is (str/includes? codex "codex -C "))
+        (is (str/includes? codex "Read swarmforge/roles/lieutenant.prompt"))
+        (is (not (str/includes? codex "$(cat "))))
+      (write-file (fs/path root "swarmforge/swarmforge.conf") "Lieutenant copilot --yolo\n")
+      (let [copilot (:out (run {:dir root}
+                               (script "swarmforge.bb")
+                               "--test-lieutenant-launch-command"
+                               (str root)))]
+        (is (str/includes? copilot "-i \"Read swarmforge/roles/lieutenant.prompt")))
+      (write-file (fs/path root "swarmforge/swarmforge.conf") "Lieutenant claude --yolo\n")
+      (let [claude (:out (run {:dir root}
+                              (script "swarmforge.bb")
+                              "--test-lieutenant-launch-command"
+                              (str root)))]
+        (is (str/includes? claude "--append-system-prompt-file "))
+        (is (not (str/includes? claude "Read swarmforge/roles/lieutenant.prompt"))))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest lieutenant-launch-reads-host-conf
   ;; Given a host conf line Lieutenant claude --yolo
   ;; When SwarmForge builds the lieutenant launch command
@@ -1130,4 +1162,3 @@
         (fs/delete-tree host)
         (fs/delete-tree base)
         (fs/delete-tree packs)))))
-
