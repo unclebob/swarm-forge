@@ -727,12 +727,50 @@
 (defn pack-web-pid-file [ctx]
   (fs/path (:state-dir ctx) "pack_web.pid"))
 
+(defn previous-dashboard-port [ctx]
+  (let [file (dashboard-url-file ctx)]
+    (when (fs/regular-file? file)
+      (second (re-matches #".*:(\d+)\s*$" (str/trim (slurp (str file))))))))
+
+(defn process-alive? [pid]
+  (zero? (:exit (process/sh {:continue true} "kill" "-0" pid))))
+
+(defn wait-for-exit [pid timeout-ms]
+  (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
+    (loop []
+      (cond
+        (not (process-alive? pid)) true
+        (> (System/currentTimeMillis) deadline) false
+        :else (do (Thread/sleep 100) (recur))))))
+
+(defn port-available? [port]
+  (try
+    (let [socket (java.net.ServerSocket.)]
+      (try
+        ;; Bind exactly where the dashboard binds, without address reuse. A
+        ;; wildcard bind with SO_REUSEADDR succeeds on macOS even while the
+        ;; dashboard is listening on 127.0.0.1, which would pick a port that is
+        ;; already taken.
+        (.setReuseAddress socket false)
+        (.bind socket (java.net.InetSocketAddress. "127.0.0.1" (Integer/parseInt (str port))))
+        true
+        (finally (.close socket))))
+    (catch Exception _ false)))
+
+(defn test-dashboard-address! [root port]
+  (let [ctx {:state-dir (fs/path root ".swarmforge")}]
+    (println (str "previous=" (or (previous-dashboard-port ctx) "none")
+                  " available=" (port-available? port)))))
+
 (defn stop-existing-pack-web! [ctx]
   (let [file (pack-web-pid-file ctx)
         pid (when (fs/regular-file? file)
               (not-empty (str/trim (slurp (str file)))))]
     (when pid
-      (process/sh {:continue true} "kill" "-TERM" pid))
+      (process/sh {:continue true} "kill" "-TERM" pid)
+      ;; The dashboard reuses its last port when that port is free, so the old
+      ;; server has to be gone before the new one tries to bind it.
+      (wait-for-exit pid 5000))
     (fs/delete-if-exists file)
     (fs/delete-if-exists (dashboard-url-file ctx))))
 
@@ -744,17 +782,24 @@
     (process/sh {:continue true} "open" url)))
 
 (defn start-pack-web! [ctx]
-  (stop-existing-pack-web! ctx)
-  (let [script (str (fs/path (:script-dir ctx) "pack_web.sh"))
-        log (fs/path (:state-dir ctx) "dashboard.log")]
-    (process/process [script "--serve" (str (:working-dir ctx))]
-                     {:out (str log) :err :out})
+  ;; The dashboard's address is the operator's bookmark, so it keeps the port it
+  ;; served on last time whenever that port is free. A fresh port on every start
+  ;; is a bookmark that dies on every restart. If the port is taken, by another
+  ;; forge or another program, the dashboard falls back to a random one.
+  (let [previous (previous-dashboard-port ctx)]
+    (stop-existing-pack-web! ctx)
+    (let [script (str (fs/path (:script-dir ctx) "pack_web.sh"))
+          log (fs/path (:state-dir ctx) "dashboard.log")
+          port (when (and previous (port-available? previous)) previous)]
+      (process/process (cond-> [script "--serve" (str (:working-dir ctx))]
+                         port (conj port))
+                       {:out (str log) :err :out})
     (when-not (wait-for-file (dashboard-url-file ctx) 5000)
       (fail! (str red "Error:" reset " Dashboard did not start.")))
     (let [url (str/trim (slurp (str (dashboard-url-file ctx))))]
       (println (str green "Dashboard: " url reset))
       (maybe-open-browser! url)
-      url)))
+      url))))
 
 (defn context [working-dir]
   (let [working-dir (fs/absolutize (fs/path working-dir))
@@ -1059,6 +1104,7 @@
     "--test-ensure-codex-trust" (test-ensure-codex-trust! (second args))
     "--test-reset-pack-web-state" (test-reset-pack-web-state! (second args))
     "--test-tmux-base-indexes" (test-tmux-base-indexes! (second args))
+    "--test-dashboard-address" (test-dashboard-address! (second args) (nth args 2))
     "--test-create-role-session" (test-create-role-session! (second args) (nth args 2))
     "--start-project" (run-project! (second args))
     "--stop-project" (run-stop-project! (second args))

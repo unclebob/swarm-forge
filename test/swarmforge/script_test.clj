@@ -1068,6 +1068,40 @@
       (finally
         (fs/delete-tree root)))))
 
+(deftest a-dashboard-reuses-its-port-only-when-the-port-is-free
+  ;; Given a forge whose dashboard last served on a port
+  ;; When the launcher is asked what it would reuse
+  ;; Then it names that port, and it says whether the port it was given is free -
+  ;; including a port another process is holding, which is the case that would
+  ;; otherwise hand a taken port to the new dashboard
+  (let [root (tmp-dir)]
+    (try
+      (write-file (fs/path root ".swarmforge/dashboard-url") "http://127.0.0.1:49999\n")
+      (let [held (java.net.ServerSocket.)
+            _ (.bind held (java.net.InetSocketAddress. "127.0.0.1" 0))
+            free-port (.getLocalPort held)]
+        (try
+          (.close held)
+          (let [free (run {:dir root} (script "swarmforge.bb") "--test-dashboard-address"
+                          (str root) (str free-port))]
+            (is (str/includes? (:out free) "previous=49999"))
+            (is (str/includes? (:out free) "available=true")))
+          (let [taken-socket (doto (java.net.ServerSocket.)
+                               (.setReuseAddress true)
+                               (.bind (java.net.InetSocketAddress. "127.0.0.1" free-port)))
+                taken (run {:dir root} (script "swarmforge.bb") "--test-dashboard-address"
+                           (str root) (str free-port))]
+            (try
+              (is (str/includes? (:out taken) "previous=49999"))
+              (is (str/includes? (:out taken) "available=false"))
+              (finally (.close taken-socket))))
+          (fs/delete-tree (fs/path root ".swarmforge"))
+          (let [none (run {:dir root} (script "swarmforge.bb") "--test-dashboard-address"
+                          (str root) (str free-port))]
+            (is (str/includes? (:out none) "previous=none")))
+          (finally (.close held))))
+      (finally (fs/delete-tree root)))))
+
 (deftest pack-web-production-main-does-not-run-test-flags
   (let [result (run {:dir repo-root :ok? false}
                     "bb" (script "pack_web.bb") "--test-html")]
@@ -1130,4 +1164,3 @@
         (fs/delete-tree host)
         (fs/delete-tree base)
         (fs/delete-tree packs)))))
-
