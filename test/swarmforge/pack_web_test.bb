@@ -22,6 +22,7 @@
     "--test-post-chat" (test-post-chat! (second args) (nth args 2 nil))
     "--test-inject-payload" (test-inject-payload! (second args) (nth args 2 nil))
     "--test-inject-argv" (test-inject-argv! (second args) (nth args 2 nil) (nth args 3 nil))
+    "--test-chat-wake" (println (chat-wake (second args) (nth args 2 nil)))
     "--test-approve" (test-approval! (second args) (nth args 2 nil) "approve")
     "--test-reject" (test-approval! (second args) (nth args 2 nil) "reject")
     "--test-pane" (test-pane! (second args) (nth args 2 nil) (nth args 3 nil))

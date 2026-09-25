@@ -721,10 +721,21 @@
 (defn chat-id []
   (str "req-" (str/replace (str (java.time.Instant/now)) #"[^0-9A-Za-z]" "")))
 
+;; A request typed into the pane without the command that answers it leaves the
+;; operator with nothing: the request is written down, and the reply lands only
+;; where they cannot see it. The reminder rides with the request itself, in the
+;; same words roles/lieutenant.prompt already carries, so a session that never
+;; read its prompt - or read a stale copy - still answers through the tool.
+(defn answer-reminder [id]
+  (str "Answer with: pack_dashboard_request.sh answer " id " ./tmp/answer.txt"
+       " (a reply only in this pane reaches nobody)."))
+
 (defn chat-wake [id text]
-  (if (str/includes? (or text "") "\n")
-    (str "[" id "]\n" text)
-    (str "[" id "] " text)))
+  (str (if (str/includes? (or text "") "\n")
+         (str "[" id "]\n" text)
+         (str "[" id "] " text))
+       "\n"
+       (answer-reminder id)))
 
 (defn clar-wake [id role question answer]
   (str "[" id "]\n"

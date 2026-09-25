@@ -1076,6 +1076,21 @@
     (is (not (re-find #"--test-state\" \(test-state!" (slurp (script "pack_web.bb")))))
     (is (str/includes? (slurp (str (fs/path repo-root "test/swarmforge/pack_web_test.bb"))) "--test-state"))))
 
+(deftest chat-request-carries-the-command-that-answers-it
+  ;; Given a chat request the dashboard took for the operator
+  ;; When the dashboard wakes the master role's pane
+  ;; Then the request carries the command that answers it, so a session that
+  ;; never read its prompt, or read a stale one, still answers through the tool
+  (let [result (run {:dir repo-root}
+                    (script "pack_web.sh") "--test-chat-wake"
+                    "req-1" "is the build green?")
+        wake (:out result)]
+    (is (zero? (:exit result)) (:err result))
+    (is (str/includes? wake "[req-1] is the build green?"))
+    (is (str/includes? wake
+                       "Answer with: pack_dashboard_request.sh answer req-1 ./tmp/answer.txt"))
+    (is (str/includes? wake "a reply only in this pane reaches nobody"))))
+
 (deftest get-swarm-forge-copies-only-swarmforge-owned-paths
   (let [host (tmp-dir)
         base (tmp-dir)
@@ -1130,4 +1145,3 @@
         (fs/delete-tree host)
         (fs/delete-tree base)
         (fs/delete-tree packs)))))
-
