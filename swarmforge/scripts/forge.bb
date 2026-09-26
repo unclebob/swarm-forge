@@ -155,10 +155,23 @@
               (fs/copy file (fs/path dest "swarmforge" "constitution" "articles" name)
                        {:replace-existing true}))))))))
 
+;; What a project is written in: the pack's default, written once into the
+;; project's own `swarmforge/language.conf` and never written again. A pack's
+;; `project.prompt` names that default, and the project's own file is what the
+;; project is - so a project re-languaged by hand keeps its answer through every
+;; refresh, and a pack can serve a language its author never wrote for.
+(defn seed-pack-language! [pack-root dest]
+  (let [src (fs/path pack-root "language.conf")
+        file (fs/path dest "swarmforge" "language.conf")]
+    (when (and (fs/regular-file? src) (not (fs/exists? file)))
+      (fs/create-dirs (fs/parent file))
+      (fs/copy src file))))
+
 (defn overlay-pack! [forge dest pack keep-conf?]
   (copy-shared-scripts! forge dest)
   (copy-shared-articles! forge dest)
-  (copy-pack-local! (pack-dir forge pack) dest keep-conf?))
+  (copy-pack-local! (pack-dir forge pack) dest keep-conf?)
+  (seed-pack-language! (pack-dir forge pack) dest))
 
 (defn init-git-if-needed! [dir]
   (when-not (fs/exists? (fs/path dir ".git"))

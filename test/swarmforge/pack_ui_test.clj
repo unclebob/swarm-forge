@@ -2382,6 +2382,27 @@
       (is (str/includes? (slurp (str (fs/path dest ".swarmforge/pack"))) "four-pack"))
       (is (str/includes? (slurp (str (fs/path root ".swarmforge/open-projects"))) "cave")))))
 
+(deftest forge-new-project-takes-the-packs-language-once
+  ;; Given a pack whose projects are written in one language
+  ;; When a project is composed from it, re-languaged by hand, and opened again
+  ;; Then the project declares the language, and its own answer survives the refresh
+  (let [root (tmp-dir)]
+    (seed-mini-forge! root)
+    (write-file (fs/path root "packs/six-pack/language.conf") "Kotlin\n")
+    (let [result (pack-web-env root {"SWARMFORGE_SKIP_START" "1"}
+                               "--test-new-project" (str root) "cave" "six-pack" "m")
+          language (fs/path root "projects/cave/swarmforge/language.conf")]
+      (is (zero? (:exit result)) (:err result))
+      (is (fs/exists? language))
+      (is (= "Kotlin\n" (slurp (str language))))
+      ;; The project's own answer wins: a refresh seeds nothing over it.
+      (spit (str language) "Go\n")
+      (pack-web-env root {"SWARMFORGE_SKIP_START" "1"}
+                    "--test-close-project" (str root) "cave")
+      (pack-web-env root {"SWARMFORGE_SKIP_START" "1"}
+                    "--test-open-project" (str root) "cave")
+      (is (= "Go\n" (slurp (str language)))))))
+
 (deftest forge-new-project-rejects-existing-name
   (let [root (tmp-dir)]
     (seed-mini-forge! root)

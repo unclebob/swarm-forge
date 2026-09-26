@@ -1098,6 +1098,7 @@
           (write-file (fs/path pack "swarm") "#!/bin/sh\necho swarm\n")
           (write-file (fs/path pack "README.md") "pack-readme\n")
           (write-file (fs/path pack "bb.edn") "pack-bb\n")
+          (write-file (fs/path pack "language.conf") (str pack-name "\n"))
           (write-file (fs/path pack "swarmforge/swarmforge.conf")
                       "window specifier grok master\n")
           (write-file (fs/path pack "swarmforge/constitution.prompt") "PACK-CONSTITUTION\n")
@@ -1125,9 +1126,10 @@
         (is (= "PACK-LOCAL-WORKFLOW\n" (slurp (str (fs/path host "packs/four-pack/swarmforge/constitution/articles/local-workflow.prompt")))))
         (is (fs/directory? (fs/path host "projects")))
         (is (fs/exists? (fs/path host "packs/six-pack/swarmforge/swarmforge.conf")))
+        (is (= "six-pack\n" (slurp (str (fs/path host "packs/six-pack/language.conf")))))
+        (is (= "two-pack\n" (slurp (str (fs/path host "packs/two-pack/language.conf")))))
         (is (fs/exists? (fs/path host "swarm"))))
       (finally
         (fs/delete-tree host)
         (fs/delete-tree base)
         (fs/delete-tree packs)))))
-

@@ -4,6 +4,12 @@
 - On startup, procure the latest version of each required CRAP, mutation, and DRY tool for the project language directly from the listed `github.com/unclebob/...` repositories and get each one ready to run.
 - Resolve each listed repository at its latest available upstream version before installing or building it.
 - Do not rely on stale cached, vendored, or preinstalled copies when a fresh GitHub install/build is possible in the current environment.
+- A project's language is what its own `swarmforge/language.conf` says - one word, the
+  name this table uses. A pack's `project.prompt` names the *default* language of the
+  projects composed from that pack, and the project's own file wins over it: the pack
+  is the template, the project is what it is. A project that has no such file is its
+  pack's default, so read the file when it exists and the pack's line only when it
+  does not.
 - Language tool table:
   - Go: install with `go install`; mutation `github.com/unclebob/mutate4go`, CRAP `github.com/unclebob/crap4go`, DRY `github.com/unclebob/dry4go`.
   - Clojure: install with Clojure CLI/deps.edn; mutation `github.com/unclebob/clj-mutate`, CRAP `github.com/unclebob/crap4clj`, DRY `github.com/unclebob/dry4clj`.

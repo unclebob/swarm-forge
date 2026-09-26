@@ -128,6 +128,7 @@ copy_pack_template() {
   local dest="$2"
   mkdir -p "$dest/swarmforge"
   [[ -f "$src/swarm" ]] && cp "$src/swarm" "$dest/swarm"
+  [[ -f "$src/language.conf" ]] && cp "$src/language.conf" "$dest/language.conf"
   [[ -f "$src/swarmforge/swarmforge.conf" ]] || fail_missing "swarmforge/swarmforge.conf in pack"
   [[ -d "$src/swarmforge/roles" ]] || fail_missing "swarmforge/roles in pack"
   cp "$src/swarmforge/swarmforge.conf" "$dest/swarmforge/swarmforge.conf"
