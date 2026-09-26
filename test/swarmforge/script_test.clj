@@ -588,6 +588,17 @@
         (fs/delete-tree root)
         (fs/delete-tree home)))))
 
+(deftest a-go-tool-is-installed-as-a-go-tool
+  ;; Given the tool registry
+  ;; When it is read
+  ;; Then the Go tools name the package go install builds, rather than a Babashka task
+  ;; that cannot build a Go binary for any project
+  (let [registry (slurp (str (fs/path repo-root "swarmforge" "scripts" "swarm_tool.bb")))]
+    (is (str/includes? registry ":go-package \"github.com/unclebob/crap4go/cmd/crap4go\""))
+    (is (str/includes? registry ":go-package \"github.com/unclebob/dry4go/cmd/dry4go\""))
+    (is (str/includes? registry ":go-package \"github.com/unclebob/mutate4go/cmd/mutate4go\""))
+    (is (not (str/includes? registry "\"crap4go\" {:source \"github.com/unclebob/crap4go\" :bb-task")))))
+
 (deftest swarm-tool-knows-constitution-tool-names
   ;; Given a pack project
   ;; When require runs for clj-mutate
@@ -1130,4 +1141,3 @@
         (fs/delete-tree host)
         (fs/delete-tree base)
         (fs/delete-tree packs)))))
-

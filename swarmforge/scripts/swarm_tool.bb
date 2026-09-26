@@ -26,12 +26,16 @@
              :args ["-c" "spec"]}
    "speclj-structure-check" {:source "github.com/unclebob/speclj-structure-check"
                              :bb-task "check"}
-   "crap4go" {:source "github.com/unclebob/crap4go" :bb-task "crap4go"}
-   "dry4go" {:source "github.com/unclebob/dry4go" :bb-task "dry4go"}
-   "mutate4go" {:source "github.com/unclebob/mutate4go" :bb-task "mutate4go"}
+   "crap4go" {:source "github.com/unclebob/crap4go"
+              :go-package "github.com/unclebob/crap4go/cmd/crap4go"}
+   "dry4go" {:source "github.com/unclebob/dry4go"
+             :go-package "github.com/unclebob/dry4go/cmd/dry4go"}
+   "mutate4go" {:source "github.com/unclebob/mutate4go"
+                :go-package "github.com/unclebob/mutate4go/cmd/mutate4go"}
    "crap4java" {:source "github.com/unclebob/crap4java" :bb-task "crap4java"}
    "dry4java" {:source "github.com/unclebob/dry4java" :bb-task "dry4java"}
-   "mutate4java" {:source "github.com/unclebob/mutate4java" :bb-task "mutate4java"}})
+   "mutate4java" {:source "github.com/unclebob/mutate4java" :bb-task "mutate4java"}
+})
 
 (def usage-text
   (str "Usage:\n"
@@ -88,11 +92,29 @@
     (fs/path override)
     (fs/path root ".swarmforge" "tools" (last (str/split source #"/")))))
 
+(defn go-bin-dir [root]
+  (fs/path root ".swarmforge" "go-bin"))
+
+(defn go-package-name [spec]
+  (last (str/split (or (:go-package spec) "") #"/")))
+
+(defn go-binary-path [root spec]
+  (fs/path (go-bin-dir root) (go-package-name spec)))
+
+;; A Go tool counts as installed only when its wrapper and the binary the
+;; wrapper execs are both present; the binary lives in .swarmforge/go-bin so
+;; `go install` never overwrites the wrapper in .swarmforge/bin.
+(defn tool-installed? [root tool]
+  (let [spec (get catalog (canonical-tool tool))]
+    (and (fs/executable? (wrapper-path root tool))
+         (or (nil? (:go-package spec))
+             (fs/executable? (go-binary-path root spec))))))
+
 (defn needed-tools [tool]
   (vec (or (:needs (tool-spec tool)) [])))
 
 (defn missing-tool [root tool]
-  (first (remove #(fs/executable? (wrapper-path root %))
+  (first (remove #(tool-installed? root %)
                  (cons tool (needed-tools tool)))))
 
 (defn require-tool! [tool]
@@ -190,14 +212,52 @@
           (when (seq args) (str " " args))
           " \"$@\"\n"))))
 
+(defn install-go-package! [root spec]
+  (let [pkg (:go-package spec)
+        bin-dir (go-bin-dir root)]
+    (when-not (fs/which "go")
+      (exit! 1 (str "Go toolchain not found on PATH. Install Go, then run: swarm_tool.sh ensure "
+                    (go-package-name spec))))
+    (fs/create-dirs bin-dir)
+    ;; clojure.java.shell replaces the environment rather than merging it, so
+    ;; pass the current environment through with GOBIN added; otherwise go
+    ;; cannot find GOPATH, HOME, or PATH.
+    (let [env (assoc (into {} (System/getenv)) "GOBIN" (str bin-dir))]
+      (let [result (sh/sh "go" "install" (str pkg "@" (or (:go-version spec) "latest"))
+                          :env env)]
+        (when-not (zero? (:exit result))
+          (exit! 1 (str "Failed to go install " pkg "\n" (:err result) (:out result))))))
+    (str (go-binary-path root spec))))
+
+;; Go tools are upstream Go modules, not babashka tasks, so they get a
+;; wrapper that execs a binary installed by `go install` at ensure time. The
+;; mutate-rewrite-bash prefix still applies, since it is plain argument
+;; handling (drop --mutate-all, cap workers) rather than anything bb-specific.
+(defn write-go-wrapper! [root tool spec]
+  (let [bin (install-go-package! root spec)
+        target (wrapper-path root tool)]
+    (write-wrapper!
+     target
+     (str (rewrite-bash tool)
+          "bin=" (sq bin) "\n"
+          "if [ ! -x \"$bin\" ]; then\n"
+          "  echo \"swarm_tool: missing $bin; run: swarm_tool.sh ensure " tool "\" >&2\n"
+          "  exit 1\n"
+          "fi\n"
+          "exec \"$bin\" \"$@\"\n"))))
+
+
+
+
 (defn install-one! [tool]
   (let [spec (tool-spec tool)
         root (project-root)
         name (canonical-tool tool)
-        target (if-let [bb-task (:bb-task spec)]
-                 (write-bb-wrapper! root name bb-task
-                                    (ensure-source! root (:source spec)))
-                 (write-mvn-wrapper! root name spec))]
+        target (cond
+                 (:go-package spec) (write-go-wrapper! root name spec)
+                 (:bb-task spec) (write-bb-wrapper! root name (:bb-task spec)
+                                                    (ensure-source! root (:source spec)))
+                 :else (write-mvn-wrapper! root name spec))]
     (println "INSTALLED:" name (str target))))
 
 (defn ensure-tool! [tool]
