@@ -727,34 +727,81 @@
 (defn pack-web-pid-file [ctx]
   (fs/path (:state-dir ctx) "pack_web.pid"))
 
+(defn process-handle [pid]
+  (when (and pid (pos? pid))
+    (.orElse (java.lang.ProcessHandle/of pid) nil)))
+
+(defn pack-web-process? [ctx handle]
+  (let [info (when handle (.info handle))
+        command (when info (.orElse (.command info) nil))
+        arguments (when info
+                    (vec (.orElse (.arguments info) (into-array String []))))
+        expected-command (some-> (fs/which "bb") fs/real-path str)
+        actual-command (some-> command fs/path fs/real-path str)
+        expected-script (str (fs/absolutize (fs/path (:script-dir ctx) "pack_web.bb")))
+        expected-root (str (:working-dir ctx))]
+    (and handle
+         (.isAlive handle)
+         (= expected-command actual-command)
+         (= expected-script (first arguments))
+         (= "--serve" (second arguments))
+         (= expected-root (nth arguments 2 nil)))))
+
+(defn wait-for-process-exit [handle timeout-ms]
+  (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
+    (loop []
+      (cond
+        (not (.isAlive handle)) true
+        (> (System/currentTimeMillis) deadline) false
+        :else (do (Thread/sleep 20) (recur))))))
+
+(defn stop-pack-web-process! [handle]
+  (.destroy handle)
+  (when-not (wait-for-process-exit handle 1000)
+    (.destroyForcibly handle)
+    (when-not (wait-for-process-exit handle 4000)
+      (fail! (str red "Error:" reset " Registered dashboard process did not stop.")))))
+
 (defn stop-existing-pack-web! [ctx]
   (let [file (pack-web-pid-file ctx)
         pid (when (fs/regular-file? file)
-              (not-empty (str/trim (slurp (str file)))))]
-    (when pid
-      (process/sh {:continue true} "kill" "-TERM" pid))
+              (parse-long (str/trim (slurp (str file)))))
+        handle (process-handle pid)]
+    (when (pack-web-process? ctx handle)
+      (stop-pack-web-process! handle))
     (fs/delete-if-exists file)
     (fs/delete-if-exists (dashboard-url-file ctx))))
 
 (defn open-browser? []
   (not= "0" (System/getenv "SWARMFORGE_OPEN_BROWSER")))
 
+(defn dashboard-port []
+  (if-let [raw (System/getenv "SWARMFORGE_DASHBOARD_PORT")]
+    (let [port (parse-long raw)]
+      (if (and port (<= 0 port 65535))
+        port
+        (config-fail! "SWARMFORGE_DASHBOARD_PORT must be an integer from 0 to 65535")))
+    0))
+
 (defn maybe-open-browser! [url]
   (when (and (open-browser?) (command-exists? "open"))
     (process/sh {:continue true} "open" url)))
 
 (defn start-pack-web! [ctx]
-  (stop-existing-pack-web! ctx)
-  (let [script (str (fs/path (:script-dir ctx) "pack_web.sh"))
-        log (fs/path (:state-dir ctx) "dashboard.log")]
-    (process/process [script "--serve" (str (:working-dir ctx))]
-                     {:out (str log) :err :out})
-    (when-not (wait-for-file (dashboard-url-file ctx) 5000)
-      (fail! (str red "Error:" reset " Dashboard did not start.")))
-    (let [url (str/trim (slurp (str (dashboard-url-file ctx))))]
-      (println (str green "Dashboard: " url reset))
-      (maybe-open-browser! url)
-      url)))
+  (let [port (dashboard-port)]
+    (stop-existing-pack-web! ctx)
+    (let [script (str (fs/path (:script-dir ctx) "pack_web.sh"))
+          log (fs/path (:state-dir ctx) "dashboard.log")]
+      (process/process [script "--serve" (str (:working-dir ctx)) (str port)]
+                       {:out (str log) :err :out})
+      (when-not (wait-for-file (dashboard-url-file ctx) 5000)
+        (fail! (str red "Error:" reset " Dashboard did not start"
+                    (when (pos? port) (str " on configured port " port))
+                    ".")))
+      (let [url (str/trim (slurp (str (dashboard-url-file ctx))))]
+        (println (str green "Dashboard: " url reset))
+        (maybe-open-browser! url)
+        url))))
 
 (defn context [working-dir]
   (let [working-dir (fs/absolutize (fs/path working-dir))
@@ -1041,6 +1088,9 @@
     (println (str (boolean (fs/exists? (dashboard-url-file ctx))) " "
                   (boolean (fs/exists? (pack-web-pid-file ctx)))))))
 
+(defn test-start-pack-web! [root]
+  (start-pack-web! (context root)))
+
 (defn -main [& args]
   (case (first args)
     "--test-parse" (test-parse! (or (second args) (System/getProperty "user.dir")))
@@ -1058,6 +1108,7 @@
     "--test-sleep-inhibitor-prefix" (test-sleep-inhibitor-prefix!)
     "--test-ensure-codex-trust" (test-ensure-codex-trust! (second args))
     "--test-reset-pack-web-state" (test-reset-pack-web-state! (second args))
+    "--test-start-pack-web" (test-start-pack-web! (second args))
     "--test-tmux-base-indexes" (test-tmux-base-indexes! (second args))
     "--test-create-role-session" (test-create-role-session! (second args) (nth args 2))
     "--start-project" (run-project! (second args))

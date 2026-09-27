@@ -33,6 +33,25 @@
 (defn tmp-dir []
   (fs/create-temp-dir {:prefix "swarmforge-script-test."}))
 
+(defn free-port []
+  (with-open [socket (java.net.ServerSocket. 0)]
+    (.getLocalPort socket)))
+
+(defn wait-file [path timeout-ms]
+  (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
+    (loop []
+      (cond
+        (fs/exists? path) true
+        (> (System/currentTimeMillis) deadline) false
+        :else (do (Thread/sleep 50) (recur))))))
+
+(defn destroy-registered-dashboard! [root]
+  (let [pid-file (fs/path root ".swarmforge/pack_web.pid")]
+    (when (fs/regular-file? pid-file)
+      (when-let [pid (parse-long (str/trim (slurp (str pid-file))))]
+        (when-let [handle (.orElse (java.lang.ProcessHandle/of pid) nil)]
+          (.destroyForcibly handle))))))
+
 (defn script [name]
   (str (fs/path scripts-dir name)))
 
@@ -392,6 +411,156 @@
         (is (not (fs/exists? (fs/path root ".swarmforge/dashboard-url"))))
         (is (not (fs/exists? (fs/path root ".swarmforge/pack_web.pid")))))
       (finally
+        (fs/delete-tree root)))))
+
+(deftest configured-dashboard-port-replaces-the-registered-dashboard
+  ;; Given a dashboard registered for a project on a fixed port
+  ;; When SwarmForge starts the dashboard with that configured port
+  ;; Then the old dashboard stops and the replacement serves the same URL
+  (let [root (tmp-dir)
+        port (str (free-port))
+        url (str "http://127.0.0.1:" port)
+        old-dashboard (.start (java.lang.ProcessBuilder.
+                               [(script "pack_web.sh") "--serve" (str root) port]))]
+    (try
+      (is (wait-file (fs/path root ".swarmforge/dashboard-url") 5000))
+      (run {:dir root} "kill" "-STOP" (str (.pid old-dashboard)))
+      (let [result (run {:dir root
+                         :ok? false
+                         :env {"SWARMFORGE_DASHBOARD_PORT" port}}
+                        (script "swarmforge.bb")
+                        "--test-start-pack-web"
+                        (str root))]
+        (is (zero? (:exit result)) (:err result))
+        (when (zero? (:exit result))
+          (is (= url (re-find #"http://127\.0\.0\.1:\d+" (:out result))))
+          (is (.waitFor old-dashboard 5 java.util.concurrent.TimeUnit/SECONDS))
+          (is (not (.isAlive old-dashboard)))
+          (is (str/includes? (slurp url) "New Task"))))
+      (finally
+        (when (.isAlive old-dashboard)
+          (.destroyForcibly old-dashboard))
+        (destroy-registered-dashboard! root)
+        (fs/delete-tree root)))))
+
+(deftest stale-dashboard-pid-preserves-an-unrelated-process
+  ;; Given a stale dashboard PID file whose PID now belongs to another process
+  ;; When SwarmForge clears the prior dashboard state
+  ;; Then the unrelated process remains alive
+  (let [root (tmp-dir)
+        unrelated (.start (java.lang.ProcessBuilder. ["sleep" "120"]))]
+    (try
+      (write-file (fs/path root ".swarmforge/dashboard-url") "http://127.0.0.1:64002\n")
+      (write-file (fs/path root ".swarmforge/pack_web.pid") (str (.pid unrelated) "\n"))
+      (let [result (run {:dir root}
+                        (script "swarmforge.bb")
+                        "--test-reset-pack-web-state"
+                        (str root))]
+        (is (zero? (:exit result)) (:err result))
+        (is (.isAlive unrelated))
+        (is (not (fs/exists? (fs/path root ".swarmforge/dashboard-url"))))
+        (is (not (fs/exists? (fs/path root ".swarmforge/pack_web.pid")))))
+      (finally
+        (when (.isAlive unrelated)
+          (.destroyForcibly unrelated))
+        (fs/delete-tree root)))))
+
+(deftest dashboard-pid-with-matching-arguments-requires-the-bb-command
+  ;; Given an unrelated command whose arguments imitate pack_web
+  ;; When SwarmForge clears the prior dashboard state
+  ;; Then command identity prevents termination
+  (let [root (tmp-dir)
+        expected-script (str (fs/absolutize (fs/path scripts-dir "pack_web.bb")))
+        builder (doto (java.lang.ProcessBuilder.
+                       ["/usr/bin/yes" expected-script "--serve" (str root)])
+                  (.redirectOutput java.lang.ProcessBuilder$Redirect/DISCARD)
+                  (.redirectError java.lang.ProcessBuilder$Redirect/DISCARD))
+        unrelated (.start builder)]
+    (try
+      (let [expected [expected-script "--serve" (str root)]
+            deadline (+ (System/currentTimeMillis) 5000)]
+        (loop []
+          (let [arguments (vec (.orElse (.arguments (.info (.toHandle unrelated)))
+                                        (into-array String [])))]
+            (when (and (not= expected arguments)
+                       (< (System/currentTimeMillis) deadline))
+              (Thread/sleep 20)
+              (recur))))
+        (is (= expected
+               (vec (.orElse (.arguments (.info (.toHandle unrelated)))
+                             (into-array String []))))))
+      (write-file (fs/path root ".swarmforge/dashboard-url") "http://127.0.0.1:64002\n")
+      (write-file (fs/path root ".swarmforge/pack_web.pid") (str (.pid unrelated) "\n"))
+      (run {:dir root}
+           (script "swarmforge.bb")
+           "--test-reset-pack-web-state"
+           (str root))
+      (is (.isAlive unrelated))
+      (finally
+        (when (.isAlive unrelated)
+          (.destroyForcibly unrelated))
+        (fs/delete-tree root)))))
+
+(deftest configured-dashboard-port-preserves-an-unregistered-process
+  ;; Given a fixed port held by a process outside this project's dashboard state
+  ;; When SwarmForge tries to start the dashboard on that port
+  ;; Then startup identifies the port conflict without terminating its owner
+  (let [root (tmp-dir)
+        port (str (free-port))
+        ready (str (fs/path root "port-holder.ready"))
+        owner (.start (java.lang.ProcessBuilder.
+                       ["bb" "-e"
+                        (str "(let [port (parse-long (first *command-line-args*)) "
+                             "ready (second *command-line-args*) "
+                             "socket (doto (java.net.ServerSocket.) "
+                             "(.bind (java.net.InetSocketAddress. \"127.0.0.1\" port)))] "
+                             "(spit ready \"ready\\n\") "
+                             "(try (Thread/sleep 120000) (finally (.close socket))))")
+                        port ready]))]
+    (try
+      (is (wait-file ready 5000))
+      (is (.isAlive owner))
+      (fs/create-dirs (fs/path root ".swarmforge"))
+      (let [result (run {:dir root
+                         :ok? false
+                         :env {"SWARMFORGE_DASHBOARD_PORT" port}}
+                        (script "swarmforge.bb")
+                        "--test-start-pack-web"
+                        (str root))]
+        (is (not (zero? (:exit result))))
+        (is (str/includes? (:err result) port))
+        (is (.isAlive owner))
+        (is (not (fs/exists? (fs/path root ".swarmforge/dashboard-url")))))
+      (finally
+        (when (.isAlive owner)
+          (.destroyForcibly owner))
+        (destroy-registered-dashboard! root)
+        (fs/delete-tree root)))))
+
+(deftest invalid-dashboard-port-is-rejected
+  ;; Given a malformed fixed dashboard port
+  ;; When SwarmForge starts the dashboard
+  ;; Then startup fails instead of silently selecting a dynamic port
+  (let [root (tmp-dir)
+        dashboard (.start (java.lang.ProcessBuilder.
+                           [(script "pack_web.sh") "--serve" (str root) "0"]))]
+    (try
+      (is (wait-file (fs/path root ".swarmforge/dashboard-url") 5000))
+      (let [original-url (slurp (str (fs/path root ".swarmforge/dashboard-url")))
+            result (run {:dir root
+                         :ok? false
+                         :env {"SWARMFORGE_DASHBOARD_PORT" "not-a-port"}}
+                        (script "swarmforge.bb")
+                        "--test-start-pack-web"
+                        (str root))]
+        (is (not (zero? (:exit result))))
+        (is (str/includes? (:err result) "SWARMFORGE_DASHBOARD_PORT"))
+        (is (.isAlive dashboard))
+        (is (= original-url
+               (slurp (str (fs/path root ".swarmforge/dashboard-url"))))))
+      (finally
+        (when (.isAlive dashboard)
+          (.destroyForcibly dashboard))
         (fs/delete-tree root)))))
 
 (deftest grok-lieutenant-launch-waits-for-chat
@@ -1108,7 +1277,8 @@
       (let [result (run {:dir host
                          :env {"SWARMFORGE_BASE_DIR" (str base)
                                "SWARMFORGE_PACKS_DIR" (str packs)}}
-                        (str (fs/path repo-root "get-swarm-forge")))]
+                        (str (fs/path repo-root "get-swarm-forge"))
+                        "project-manager")]
         (is (zero? (:exit result)) (:err result))
         (is (= "host-readme\n" (slurp (str (fs/path host "README.md")))))
         (is (= "{:paths [\"test\"]}\n" (slurp (str (fs/path host "bb.edn")))))
@@ -1130,4 +1300,3 @@
         (fs/delete-tree host)
         (fs/delete-tree base)
         (fs/delete-tree packs)))))
-

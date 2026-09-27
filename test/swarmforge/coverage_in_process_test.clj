@@ -78,6 +78,29 @@
   (is (true? (swarmforge/visible-window? "window" 1)))
   (is (false? (swarmforge/visible-window? "window-invisible" 2))))
 
+(deftest forge-project-runtime-does-not-inherit-the-host-dashboard-port
+  (let [root (tmp-dir)
+        dest (fs/path root "projects/cave")
+        received-port (fs/path dest "received-dashboard-port")
+        script (fs/path root "swarmforge/scripts/swarmforge.bb")]
+    (try
+      (fs/create-dirs (fs/parent script))
+      (fs/create-dirs dest)
+      (spit (str script)
+            (str "(spit (str (second *command-line-args*) "
+                 "\"/received-dashboard-port\") "
+                 "(or (System/getenv \"SWARMFORGE_DASHBOARD_PORT\") \"missing\"))\n"))
+      (forge/start-project-runtime! root "cave")
+      (let [deadline (+ (System/currentTimeMillis) 5000)]
+        (loop []
+          (when (and (not (fs/regular-file? received-port))
+                     (< (System/currentTimeMillis) deadline))
+            (Thread/sleep 50)
+            (recur))))
+      (is (= "0" (slurp (str received-port))))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest handoffd-parses-recipients-and-messages
   (is (= ["coder" "cleaner"] (handoffd/recipient-list {"to" "coder, cleaner"})))
   (is (true? (handoffd/non-forwarding? {"non-forwarding" "true"})))

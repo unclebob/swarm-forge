@@ -112,6 +112,23 @@ Branches may extend the grammar for their own control plane—for example,
 `swarmforge/squad.conf`. The selected branch README and its parser are the
 authority for those extensions.
 
+## Dashboard port
+
+The dashboard uses an operating-system-assigned localhost port by default.
+Set `SWARMFORGE_DASHBOARD_PORT` before running `./swarm` when a project needs
+a stable URL:
+
+```sh
+SWARMFORGE_DASHBOARD_PORT=8765 ./swarm
+```
+
+Restarting the same project stops the dashboard recorded in that project's
+`.swarmforge/pack_web.pid` before reclaiming the configured port. SwarmForge
+does not terminate an unregistered process that owns the port; startup fails
+and identifies the unavailable port instead. A forge host does not pass its
+fixed port to child projects; their dashboards continue to use dynamically
+assigned ports so they can run concurrently.
+
 ## Constitution and role prompts
 
 The installer composes instructions as data; it does not bake every product's

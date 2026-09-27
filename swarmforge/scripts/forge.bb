@@ -229,7 +229,9 @@
         log (fs/path dest ".swarmforge" "start.log")]
     (fs/create-dirs (fs/parent log))
     (process/process ["bb" script "--start-project" (str dest)]
-                     {:out (str log) :err :out})))
+                     {:out (str log)
+                      :err :out
+                      :extra-env {"SWARMFORGE_DASHBOARD_PORT" "0"}})))
 
 (defn stop-project-runtime! [forge name]
   (let [dest (str (project-dir forge name))
